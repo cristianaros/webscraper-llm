@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+chromadb
+google-genai
+python-dotenv
+python-multipart
+aiofiles

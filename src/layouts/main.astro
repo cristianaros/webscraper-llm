@@ -1,0 +1,97 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  activePage?: "home" | "admin" | "chat";
+}
+
+const {
+  title,
+  description = "Plataforma de noticias universitarias con inteligencia artificial basada en Google Gemini y RAG.",
+  activePage = "home",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} — UniNews</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>" />
+  </head>
+  <body>
+    <!-- Top navigation bar -->
+    <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-lg">
+      <div class="mx-auto flex h-16 max-w-screen-xl items-center justify-between gap-6 px-6">
+        <!-- Brand -->
+        <a href="/" class="flex items-center gap-3 no-underline">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-bold shadow-sm">
+            U
+          </div>
+          <div class="hidden sm:block">
+            <span class="font-display text-lg font-normal text-foreground leading-none">UniNews</span>
+            <p class="text-[10px] text-muted-foreground leading-none mt-0.5 tracking-widest uppercase">Portal Universitario</p>
+          </div>
+        </a>
+
+        <!-- Nav links -->
+        <nav class="flex items-center gap-1">
+          <a
+            href="/"
+            class:list={[
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              activePage === "home"
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            ]}
+          >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span class="hidden sm:inline">Noticias</span>
+          </a>
+          <a
+            href="/admin"
+            class:list={[
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              activePage === "admin"
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            ]}
+          >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="7" height="9" x="3" y="3" rx="1"/>
+              <rect width="7" height="5" x="14" y="3" rx="1"/>
+              <rect width="7" height="9" x="14" y="12" rx="1"/>
+              <rect width="7" height="5" x="3" y="16" rx="1"/>
+            </svg>
+            <span class="hidden sm:inline">Administrar</span>
+          </a>
+          <a
+            href="/chat"
+            class:list={[
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              activePage === "chat"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-primary/10 text-primary hover:bg-primary/20",
+            ]}
+          >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            </svg>
+            <span class="hidden sm:inline">Asistente IA</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <slot />
+  </body>
+</html>
