@@ -16,7 +16,9 @@
     "astro": "astro",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,astro}\"",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "backend": "cd backend && venv\\Scripts\\uvicorn main:app --reload",
+    "dev:all": "concurrently --kill-others --names \"frontend,backend\" --prefix-colors \"cyan,magenta\" \"npm run dev\" \"npm run backend\""
   },
   "dependencies": {
     "@astrojs/react": "^5",
@@ -43,6 +45,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9",
     "@eslint/js": "^10",
+    "concurrently": "^9",
     "eslint": "^10",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

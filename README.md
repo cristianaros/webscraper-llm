@@ -1,18 +1,52 @@
-# 🎓 UniNews — Sistema de Noticias Universitarias con IA
+# 🎓 UniNews
 
-Plataforma web para gestionar y consultar **noticias universitarias** con un asistente de **Inteligencia Artificial** basado en **Google Gemini + RAG** (Retrieval-Augmented Generation).
+> Plataforma de noticias universitarias potenciada por Inteligencia Artificial.  
+> Consulta, busca y pregunta sobre noticias usando un asistente basado en **Google Gemini + RAG**.
 
-## 🚀 Características
+![Astro](https://img.shields.io/badge/Astro-6-BC52EE?logo=astro&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Gemini-1.5_Flash-4285F4?logo=google&logoColor=white)
 
-| Característica | Descripción |
-|---|---|
-| 📰 Gestión de Noticias | CRUD completo (crear, leer, editar, eliminar) |
-| 🔍 Búsqueda & Filtros | Por categoría, universidad y texto libre |
-| 🤖 Asistente IA | Chat en lenguaje natural con respuestas basadas en noticias reales |
-| 🧠 RAG | Las respuestas se fundamentan en el contenido indexado (no alucinaciones) |
-| ⭐ Noticias Destacadas | Sistema de noticias destacadas |
-| 📊 Dashboard | Estadísticas en tiempo real |
-| 🎨 Diseño Premium | Dark mode, Astro + shadcn/ui, animaciones |
+---
+
+## ✨ Características
+
+- 📰 **Gestión de noticias** — CRUD completo con panel de administración
+- 🔍 **Búsqueda y filtros** — por categoría, universidad y texto libre
+- 🤖 **Asistente IA** — chat en lenguaje natural respondiendo con base en las noticias reales
+- 🧠 **RAG (Retrieval-Augmented Generation)** — respuestas fundamentadas, sin alucinaciones
+- ⭐ **Noticias destacadas** — sistema de destacados con estadísticas en tiempo real
+- 🎨 **Diseño dark mode** — Astro + shadcn/ui + Tailwind CSS v4
+
+---
+
+## 🖥️ Capturas
+
+| Noticias | Asistente IA | Administrador |
+|---|---|---|
+| Grid con filtros por categoría | Chat con fuentes citadas | CRUD completo |
+
+---
+
+## 🏗️ Arquitectura
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Frontend (Vercel)                   │
+│          Astro 6 + React 19 + shadcn/ui + Tailwind       │
+└────────────────────┬────────────────────────────────────┘
+                     │ HTTP REST (PUBLIC_API_URL)
+┌────────────────────▼────────────────────────────────────┐
+│                   Backend (Railway / Render)              │
+│                  FastAPI + SQLite + ChromaDB              │
+│                                                          │
+│   Pregunta → Embedding → ChromaDB → Top-K noticias →    │
+│   Gemini 1.5 Flash → Respuesta + fuentes citadas         │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -20,27 +54,40 @@ Plataforma web para gestionar y consultar **noticias universitarias** con un asi
 
 ```
 webscraper-llm/
-├── backend/               # FastAPI + SQLite + ChromaDB (RAG)
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── sample_data.py
+├── backend/                  # API Python
+│   ├── main.py               # FastAPI app + lifespan
+│   ├── database.py           # Conexión SQLite + SQLAlchemy
+│   ├── models.py             # Modelos de base de datos
+│   ├── schemas.py            # Esquemas Pydantic
+│   ├── app_state.py          # Estado global (RAG engine)
+│   ├── sample_data.py        # Datos de demo
 │   ├── requirements.txt
 │   ├── rag/
-│   │   └── engine.py      # Motor RAG (Gemini + ChromaDB)
+│   │   └── engine.py         # Motor RAG (Gemini + ChromaDB)
 │   └── routers/
-│       ├── news.py
-│       └── chat.py
-├── src/                   # Frontend Astro + shadcn/ui (raíz del proyecto)
-│   ├── pages/             # index.astro, chat.astro, admin.astro
-│   ├── components/        # NewsPage, ChatInterface, AdminPanel (React)
+│       ├── news.py           # CRUD de noticias
+│       └── chat.py           # Endpoint del asistente IA
+│
+├── src/                      # Frontend Astro
+│   ├── pages/
+│   │   ├── index.astro       # Página principal (grid de noticias)
+│   │   ├── chat.astro        # Asistente IA
+│   │   └── admin.astro       # Panel de administración
+│   ├── components/
+│   │   ├── NewsPage.tsx      # Grid + filtros + modal de detalle
+│   │   ├── ChatInterface.tsx # Chat con el asistente IA
+│   │   ├── AdminPanel.tsx    # CRUD de noticias
+│   │   └── ui/               # Componentes shadcn/ui
+│   ├── layouts/
+│   │   └── main.astro        # Layout principal con navbar
 │   └── lib/
-│       └── api.ts         # Cliente tipado para el backend
+│       ├── api.ts            # Cliente tipado para el backend
+│       └── utils.ts          # Utilidades (cn, etc.)
+│
 ├── public/
 ├── astro.config.mjs
 ├── package.json
-├── vercel.json
+├── vercel.json               # Configuración Vercel
 └── .env.example
 ```
 
@@ -48,28 +95,34 @@ webscraper-llm/
 
 ## ⚙️ Instalación local
 
-### 1. Requisitos previos
+### Requisitos
 
 - Python 3.10+
 - Node.js 22+
-- [API Key gratuita de Google Gemini](https://aistudio.google.com/app/apikey)
+- [API Key de Google Gemini](https://aistudio.google.com/app/apikey) (gratuita)
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/tu-usuario/webscraper-llm.git
+cd webscraper-llm
+```
 
 ### 2. Configurar el backend
 
 ```bash
 cd backend
-
-# Crear entorno virtual
 python -m venv venv
-venv\Scripts\activate   # Windows
-# source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux / Mac
 
-# Instalar dependencias
 pip install -r requirements.txt
+```
 
-# Configurar variables de entorno
-copy .env.example .env
-# Edita .env y coloca tu GEMINI_API_KEY
+Crea el archivo `backend/.env`:
+
+```env
+GEMINI_API_KEY=tu_api_key_aqui
 ```
 
 ### 3. Cargar datos de demo
@@ -78,79 +131,52 @@ copy .env.example .env
 python sample_data.py
 ```
 
-### 4. Iniciar el servidor
+### 4. Iniciar el backend
 
 ```bash
 python main.py
-# El servidor quedará en http://localhost:8000
+# → http://localhost:8000
+# → Docs: http://localhost:8000/docs
 ```
 
-### 5. Instalar y correr el frontend
+### 5. Configurar e iniciar el frontend
 
 ```bash
 # Desde la raíz del proyecto
-cp .env.example .env
-# Edita .env si el backend no está en localhost:8000
+cp .env.example .env   # ya tiene PUBLIC_API_URL=http://localhost:8000
 
 npm install
 npm run dev
-# Abrir http://localhost:4321
+# → http://localhost:4321
 ```
 
 ---
 
-## ☁️ Despliegue en Vercel
+## ☁️ Despliegue en producción
 
-> **Importante:** el backend (FastAPI + SQLite + ChromaDB) **no puede desplegarse en Vercel** por sus requisitos de sistema de archivos persistente. Despliégalo en [Railway](https://railway.app), [Render](https://render.com) o [Fly.io](https://fly.io) y apunta `PUBLIC_API_URL` a esa URL.
-
-### Frontend (Vercel)
+### Frontend → Vercel
 
 1. Importa el repositorio en [vercel.com/new](https://vercel.com/new)
-2. Vercel detecta Astro automáticamente — no toques nada
-3. En **Environment Variables** agrega:
+2. Vercel detecta Astro automáticamente
+3. Agrega la variable de entorno:
 
    | Variable | Valor |
    |---|---|
    | `PUBLIC_API_URL` | `https://tu-backend.railway.app` |
 
-4. Haz clic en **Deploy**
+4. Deploy ✅
 
-### Backend (Railway / Render)
+### Backend → Railway / Render
 
-```bash
-# En el servicio, configura:
-GEMINI_API_KEY=tu_api_key
+> El backend usa SQLite y ChromaDB (filesystem local), por eso **no puede correr en Vercel**.
 
-# Start command:
-cd backend && python main.py
-```
+**Railway** es la opción más sencilla:
 
----
-
-## 🔑 Variables de Entorno
-
-| Variable | Dónde | Descripción |
-|---|---|---|
-| `GEMINI_API_KEY` | `backend/.env` | API Key de Google Gemini |
-| `PUBLIC_API_URL` | `.env` / Vercel dashboard | URL del backend FastAPI |
-
----
-
-## 🧠 Arquitectura RAG
-
-```
-Pregunta del usuario
-      ↓
-  Embedding (Gemini text-embedding-004)
-      ↓
-  Búsqueda vectorial en ChromaDB
-      ↓
-  Top-K noticias relevantes
-      ↓
-  Prompt contextualizado → Gemini 1.5 Flash
-      ↓
-  Respuesta fundamentada + fuentes citadas
-```
+1. Crea un nuevo proyecto en [railway.app](https://railway.app)
+2. Conecta el repositorio
+3. Configura el directorio raíz como `backend`
+4. Agrega la variable de entorno `GEMINI_API_KEY`
+5. Comando de inicio: `python main.py`
 
 ---
 
@@ -158,24 +184,59 @@ Pregunta del usuario
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/api/news/` | Listar noticias (filtros, búsqueda) |
-| GET | `/api/news/stats` | Estadísticas generales |
-| GET | `/api/news/{id}` | Obtener noticia por ID |
-| POST | `/api/news/` | Crear noticia (+ indexar en RAG) |
-| PUT | `/api/news/{id}` | Actualizar noticia |
-| DELETE | `/api/news/{id}` | Eliminar noticia |
-| POST | `/api/chat/` | Consultar asistente IA con RAG |
-| GET | `/api/chat/status` | Estado del motor RAG |
+| `GET` | `/api/news/` | Listar noticias con filtros |
+| `GET` | `/api/news/stats` | Estadísticas generales |
+| `GET` | `/api/news/{id}` | Obtener noticia por ID |
+| `POST` | `/api/news/` | Crear noticia (se indexa en RAG) |
+| `PUT` | `/api/news/{id}` | Actualizar noticia |
+| `DELETE` | `/api/news/{id}` | Eliminar noticia |
+| `POST` | `/api/chat/` | Consultar asistente IA |
+| `GET` | `/api/chat/status` | Estado del motor RAG |
 
-Documentación interactiva: **http://localhost:8000/docs**
+Documentación interactiva: **`http://localhost:8000/docs`**
 
 ---
 
-## 🎓 Proyecto de Tesis
+## 🔑 Variables de entorno
 
-Este sistema fue desarrollado como proyecto de tesis para demostrar la integración de:
-- **Web Scraping** y almacenamiento estructurado de noticias universitarias
-- **LLM + RAG** para consulta inteligente de información
-- **FastAPI** como backend moderno en Python
-- **ChromaDB** como base de datos vectorial
-- **Google Gemini** como modelo de lenguaje y embeddings
+| Variable | Archivo | Descripción |
+|---|---|---|
+| `GEMINI_API_KEY` | `backend/.env` | API Key de Google Gemini |
+| `PUBLIC_API_URL` | `.env` / Vercel | URL del backend FastAPI |
+
+---
+
+## 🧠 Cómo funciona el RAG
+
+```
+Pregunta del usuario
+        ↓
+Embedding con text-embedding-004 (Gemini)
+        ↓
+Búsqueda vectorial en ChromaDB
+        ↓
+Top-K noticias más relevantes
+        ↓
+Prompt contextualizado → Gemini 1.5 Flash
+        ↓
+Respuesta fundamentada + fuentes citadas
+```
+
+---
+
+## 🛠️ Stack tecnológico
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | Astro 6, React 19, shadcn/ui, Tailwind CSS v4 |
+| Backend | FastAPI, SQLAlchemy, SQLite |
+| IA / RAG | Google Gemini 1.5 Flash, ChromaDB |
+| Embeddings | Google text-embedding-004 |
+| Deploy frontend | Vercel |
+| Deploy backend | Railway / Render |
+
+---
+
+## 📄 Licencia
+
+MIT © 2025
