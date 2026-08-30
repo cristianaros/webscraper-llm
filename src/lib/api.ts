@@ -14,6 +14,7 @@ export interface News {
   image_url: string | null;
   source_url: string | null;
   is_featured: boolean;
+  published_at: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -28,6 +29,7 @@ export interface NewsCreate {
   image_url?: string;
   source_url?: string;
   is_featured: boolean;
+  published_at?: string;
 }
 
 export interface StatsResponse {
@@ -44,6 +46,23 @@ export interface ChatResponse {
     title: string;
     category: string;
     university: string;
+    source_url?: string | null;
+  }>;
+}
+
+export interface ScrapeUplaResponse {
+  requested: number;
+  found: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  model: string;
+  items: Array<{
+    title: string;
+    source_url: string;
+    status: "created" | "skipped" | "failed";
+    news_id: number | null;
+    error: string | null;
   }>;
 }
 
@@ -111,6 +130,21 @@ export async function deleteNews(id: number): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
 }
 
+// ─── Scraping endpoint ────────────────────────────────────────
+
+export async function scrapeUplaNews(limit: number): Promise<ScrapeUplaResponse> {
+  const res = await fetch(`${API_BASE}/api/scrape/upla`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ limit }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Scraping failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ─── Chat endpoint ────────────────────────────────────────────
 
 export async function sendChatMessage(question: string): Promise<ChatResponse> {
@@ -123,7 +157,7 @@ export async function sendChatMessage(question: string): Promise<ChatResponse> {
   return res.json();
 }
 
-export async function fetchRagStatus(): Promise<{ status: string; indexed_documents: number }> {
+export async function fetchRagStatus(): Promise<{ status: string; indexed_documents: number; model?: string }> {
   const res = await fetch(`${API_BASE}/api/chat/status`);
   if (!res.ok) throw new Error("RAG status check failed");
   return res.json();

@@ -1,58 +1,39 @@
-import os
 import logging
+import os
+from datetime import datetime
 from typing import Optional
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+
 import chromadb
+from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
+
+from rag.openrouter import OpenRouterClient
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 
 class RAGEngine:
-    """Motor RAG: ChromaDB para retrieval + Google Gemini para generacion."""
+    """Retrieval local con ChromaDB y generacion mediante OpenRouter."""
 
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY no esta configurada en el archivo .env")
+        self.llm = OpenRouterClient()
 
-        # Cliente Gemini nuevo SDK
-        self.client = genai.Client(api_key=api_key)
-
-        # Cliente ChromaDB persistente
+        # La coleccion v2 usa embeddings locales y no es compatible en dimensiones
+        # con el indice Gemini anterior.
+        local_embeddings = embedding_functions.DefaultEmbeddingFunction()
         self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
         self.collection = self.chroma_client.get_or_create_collection(
-            name="university_news",
+            name="university_news_local_v2",
             metadata={"hnsw:space": "cosine"},
+            embedding_function=local_embeddings,
         )
-        logger.info("RAGEngine inicializado correctamente.")
-
-    # ------------------------------------------------------------------
-    # Embeddings
-    # ------------------------------------------------------------------
-    def _get_embedding(self, text: str) -> list:
-        """Genera embedding de documento con Gemini text-embedding-004."""
-        response = self.client.models.embed_content(
-            model="text-embedding-004",
-            contents=text,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+        self.max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.95"))
+        logger.info(
+            "RAGEngine inicializado con OpenRouter (%s) y embeddings locales.",
+            self.llm.model,
         )
-        return response.embeddings[0].values
 
-    def _get_query_embedding(self, text: str) -> list:
-        """Genera embedding de consulta con Gemini text-embedding-004."""
-        response = self.client.models.embed_content(
-            model="text-embedding-004",
-            contents=text,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
-        )
-        return response.embeddings[0].values
-
-    # ------------------------------------------------------------------
-    # Gestion del indice vectorial
-    # ------------------------------------------------------------------
     def add_news(
         self,
         news_id: int,
@@ -61,6 +42,8 @@ class RAGEngine:
         category: str,
         university: str,
         summary: Optional[str] = None,
+        source_url: Optional[str] = None,
+        published_at: Optional[datetime] = None,
     ):
         """Agrega o actualiza una noticia en el indice vectorial."""
         doc_text = (
@@ -68,114 +51,94 @@ class RAGEngine:
             f"Universidad: {university}\n"
             f"Categoria: {category}\n"
         )
+        if published_at:
+            doc_text += f"Fecha de publicacion: {published_at.date().isoformat()}\n"
         if summary:
             doc_text += f"Resumen: {summary}\n"
         doc_text += f"Contenido: {content}"
 
-        embedding = self._get_embedding(doc_text)
-
         self.collection.upsert(
             ids=[str(news_id)],
-            embeddings=[embedding],
             documents=[doc_text],
-            metadatas=[{
-                "news_id": news_id,
-                "title": title,
-                "category": category,
-                "university": university,
-            }],
+            metadatas=[
+                {
+                    "news_id": news_id,
+                    "title": title,
+                    "category": category,
+                    "university": university,
+                    "source_url": source_url or "",
+                }
+            ],
         )
-        logger.info(f"Noticia {news_id} indexada en ChromaDB.")
+        logger.info("Noticia %s indexada en ChromaDB.", news_id)
 
     def remove_news(self, news_id: int):
         """Elimina una noticia del indice vectorial."""
         try:
             self.collection.delete(ids=[str(news_id)])
-            logger.info(f"Noticia {news_id} eliminada de ChromaDB.")
-        except Exception as e:
-            logger.warning(f"No se pudo eliminar noticia {news_id}: {e}")
+            logger.info("Noticia %s eliminada de ChromaDB.", news_id)
+        except Exception as exc:
+            logger.warning("No se pudo eliminar noticia %s: %s", news_id, exc)
 
-    # ------------------------------------------------------------------
-    # Consulta RAG
-    # ------------------------------------------------------------------
+    def summarize_news(self, title: str, content: str) -> str:
+        return self.llm.summarize_news(title, content)
+
     def query(self, question: str, n_results: int = 4) -> dict:
-        """Pipeline RAG: pregunta -> embedding -> busqueda -> Gemini -> respuesta."""
+        """Pregunta -> embedding local -> retrieval -> MiniMax M3 -> respuesta."""
         total_docs = self.collection.count()
         if total_docs == 0:
             return {
                 "answer": (
-                    "Aun no hay noticias indexadas. "
-                    "Por favor, agrega noticias desde el panel de administracion."
+                    "Aun no hay noticias indexadas. Importa noticias UPLA o agregalas "
+                    "desde el panel de administracion."
                 ),
                 "sources": [],
             }
 
-        n = min(n_results, total_docs)
-        query_embedding = self._get_query_embedding(question)
-
         results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n,
+            query_texts=[question],
+            n_results=min(n_results, total_docs),
             include=["documents", "metadatas", "distances"],
         )
 
-        documents = results["documents"][0]
-        metadatas = results["metadatas"][0]
-        distances = results["distances"][0]
-
-        # Filtrar por relevancia coseno (menor distancia = mas similar)
+        documents = (results.get("documents") or [[]])[0]
+        metadatas = (results.get("metadatas") or [[]])[0]
+        distances = (results.get("distances") or [[]])[0]
         relevant = [
-            (doc, meta, dist)
-            for doc, meta, dist in zip(documents, metadatas, distances)
-            if dist < 0.8
+            (document, metadata, distance)
+            for document, metadata, distance in zip(documents, metadatas, distances)
+            if distance <= self.max_distance
         ]
 
         if not relevant:
             return {
                 "answer": (
-                    "No encontre noticias relevantes para tu consulta. "
-                    "Intenta reformular la pregunta o agrega mas noticias sobre ese tema."
+                    "No encontre noticias suficientemente relacionadas con tu consulta. "
+                    "Intenta reformular la pregunta."
                 ),
                 "sources": [],
             }
 
-        # Construir contexto para el LLM
         context_parts = []
         sources = []
-        for i, (doc, meta, _) in enumerate(relevant, 1):
-            context_parts.append(f"[Noticia {i}]\n{doc}")
-            sources.append({
-                "news_id": meta.get("news_id"),
-                "title": meta.get("title"),
-                "category": meta.get("category"),
-                "university": meta.get("university"),
-            })
+        for index, (document, metadata, _) in enumerate(relevant, 1):
+            context_parts.append(f"[Noticia {index}]\n{document}")
+            sources.append(
+                {
+                    "news_id": metadata.get("news_id"),
+                    "title": metadata.get("title"),
+                    "category": metadata.get("category"),
+                    "university": metadata.get("university"),
+                    "source_url": metadata.get("source_url") or None,
+                }
+            )
 
-        context = "\n\n".join(context_parts)
-
-        prompt = (
-            "Eres un asistente experto en noticias universitarias. "
-            "Responde siempre en espanol de forma clara, precisa y amable.\n\n"
-            "Basandote UNICAMENTE en las siguientes noticias universitarias, "
-            "responde la pregunta del usuario de forma detallada y util.\n\n"
-            "=== NOTICIAS DISPONIBLES ===\n"
-            f"{context}\n"
-            "=== FIN DE NOTICIAS ===\n\n"
-            f"Pregunta: {question}\n\n"
-            "Responde en espanol de forma clara y estructurada. "
-            "Si mencionas informacion especifica, indica de que noticia proviene."
-        )
-
-        response = self.client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
-        )
-
-        return {
-            "answer": response.text,
-            "sources": sources,
-        }
+        answer = self.llm.answer_from_news(question, "\n\n".join(context_parts))
+        return {"answer": answer, "sources": sources}
 
     def get_index_count(self) -> int:
-        """Retorna el numero de documentos indexados."""
         return self.collection.count()
+
+    @property
+    def model_name(self) -> str:
+        return self.llm.model

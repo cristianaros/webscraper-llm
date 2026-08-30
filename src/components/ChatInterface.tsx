@@ -58,7 +58,8 @@ export default function ChatInterface() {
   };
 
   useEffect(() => {
-    checkStatus();
+    const timer = window.setTimeout(checkStatus, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -93,13 +94,13 @@ export default function ChatInterface() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
+    } catch {
       toast.error("Ocurrió un error al enviar el mensaje.");
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Disculpa, hubo un problema al conectar con el servidor de inteligencia artificial. Asegúrate de tener el backend corriendo y configurada tu API Key de Gemini.",
+          content: "Disculpa, hubo un problema al conectar con el servidor de inteligencia artificial. Asegúrate de tener el backend activo y las variables de OpenRouter configuradas.",
           timestamp: new Date(),
         },
       ]);
@@ -119,7 +120,7 @@ export default function ChatInterface() {
             </div>
             <div>
               <h2 className="font-display text-lg font-normal">Asistente UniNews IA</h2>
-              <p className="text-xs text-muted-foreground">Desarrollado con Google Gemini RAG</p>
+              <p className="text-xs text-muted-foreground">MiniMax M3 vía OpenRouter + RAG</p>
             </div>
           </div>
 

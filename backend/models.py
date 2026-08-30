@@ -16,5 +16,6 @@ class News(Base):
     image_url = Column(String(500), nullable=True)
     source_url = Column(String(500), nullable=True)
     is_featured = Column(Boolean, default=False)
+    published_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

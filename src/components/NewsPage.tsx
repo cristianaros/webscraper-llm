@@ -6,9 +6,8 @@ import { cn } from "@/lib/utils";
 import { fetchNews, fetchStats, type News, type StatsResponse } from "@/lib/api";
 import {
   SearchIcon, FilterIcon, SparklesIcon, StarIcon,
-  GraduationCapIcon, BuildingIcon, CalendarIcon, UserIcon, ExternalLinkIcon, NewspaperIcon,
+  BuildingIcon, CalendarIcon, UserIcon, ExternalLinkIcon, NewspaperIcon,
 } from "@/lib/icons";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,7 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   General: "bg-muted text-muted-foreground border-border",
 };
 
-const CATEGORIES = ["Becas", "Investigación", "Infraestructura", "Cultura", "Logros", "Empleo", "Bienestar", "Tecnología"];
+const CATEGORIES = ["Academia", "Becas", "Cultura", "Deportes", "Destacados", "En los medios", "Género", "Infraestructura", "Investigación", "Opinión", "Tecnología"];
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
@@ -79,7 +78,7 @@ function NewsCard({ news, onClick, delay }: { news: News; onClick: () => void; d
           </span>
           <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
             <CalendarIcon className="size-3" />
-            {formatDate(news.created_at)}
+            {formatDate(news.published_at ?? news.created_at)}
           </span>
         </div>
 
@@ -175,7 +174,7 @@ function NewsDialog({ news, open, onClose }: { news: News | null; open: boolean;
               </span>
               <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                 <CalendarIcon className="size-3.5" />
-                {formatDate(news.created_at)}
+                {formatDate(news.published_at ?? news.created_at)}
               </span>
             </div>
             <DialogTitle className="font-display text-xl font-normal leading-snug text-left">
