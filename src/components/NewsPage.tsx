@@ -9,101 +9,103 @@ import {
   BuildingIcon, CalendarIcon, UserIcon, ExternalLinkIcon, NewspaperIcon,
 } from "@/lib/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Mapa categoría → color semántico en shadcn
-const CATEGORY_COLORS: Record<string, string> = {
-  Becas: "bg-primary/10 text-primary border-primary/20",
-  Investigación: "bg-teal-500/10 text-teal-400 border-teal-500/20",
-  Infraestructura: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  Cultura: "bg-rose-500/10 text-rose-400 border-rose-500/20",
-  Logros: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  Empleo: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  Bienestar: "bg-pink-500/10 text-pink-400 border-pink-500/20",
-  Tecnología: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-  General: "bg-muted text-muted-foreground border-border",
-};
-
 const CATEGORIES = ["Academia", "Becas", "Cultura", "Deportes", "Destacados", "En los medios", "Género", "Infraestructura", "Investigación", "Opinión", "Tecnología"];
+const EMPTY_CATEGORIES = new Set(["", "n/a", "none", "null", "no content available", "not available"]);
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function displayCategory(value: string) {
+  return EMPTY_CATEGORIES.has(value.trim().toLowerCase()) ? "General" : value;
+}
+
+function validSourceUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── News Card ────────────────────────────────────────────────
 
 function NewsCard({ news, onClick, delay }: { news: News; onClick: () => void; delay: number }) {
-  const catColor = CATEGORY_COLORS[news.category] ?? CATEGORY_COLORS.General;
+  const category = displayCategory(news.category);
 
   return (
     <article
-      className="group animate-fade-up flex flex-col rounded-xl border border-border bg-card overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      className="group animate-fade-up flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 focus-within:border-primary/50 focus-within:ring-3 focus-within:ring-ring/30"
       style={{ animationDelay: `${delay}ms` }}
-      onClick={onClick}
     >
-      {/* Image */}
-      <div className="relative overflow-hidden aspect-[16/9] bg-muted flex-shrink-0">
-        {news.image_url ? (
-          <img
-            src={news.image_url}
-            alt={news.title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
-            <NewspaperIcon className="size-10 text-primary/30" />
-          </div>
-        )}
-        {news.is_featured && (
-          <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-[oklch(var(--gold)/1)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[oklch(var(--gold-foreground)/1)] shadow">
-            <StarIcon className="size-2.5" />
-            Destacada
-          </span>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-col gap-3 p-4 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", catColor)}>
-            {news.category}
-          </span>
-          <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-            <CalendarIcon className="size-3" />
-            {formatDate(news.published_at ?? news.created_at)}
-          </span>
+      <button type="button" onClick={onClick} className="flex flex-1 cursor-pointer flex-col text-left outline-none">
+        {/* Image */}
+        <div className="relative aspect-[16/9] flex-shrink-0 overflow-hidden bg-muted">
+          {news.image_url ? (
+            <img
+              src={news.image_url}
+              alt={news.title}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
+              <NewspaperIcon className="size-10 text-primary/30" />
+            </div>
+          )}
+          {news.is_featured ? (
+            <Badge className="absolute left-3 top-3">
+              <StarIcon data-icon="inline-start" />
+              Destacada
+            </Badge>
+          ) : null}
         </div>
 
-        <h3 className="font-display text-base font-normal leading-snug text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-          {news.title}
-        </h3>
+        {/* Body */}
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{category}</Badge>
+            <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+              <CalendarIcon className="size-3" />
+              {formatDate(news.published_at ?? news.created_at)}
+            </span>
+          </div>
 
-        {news.summary && (
-          <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-            {news.summary}
-          </p>
-        )}
-      </div>
+          <h3 className="line-clamp-2 font-display text-base font-normal leading-snug text-foreground transition-colors group-hover:text-primary">
+            {news.title}
+          </h3>
 
-      {/* Footer */}
-      <div className="flex items-center gap-2 border-t border-border/60 px-4 py-2.5">
-        <BuildingIcon className="size-3.5 text-muted-foreground flex-shrink-0" />
-        <span className="text-xs text-muted-foreground truncate flex-1">{news.university}</span>
-        {news.author && (
-          <span className="text-[11px] text-muted-foreground/70 flex items-center gap-1 flex-shrink-0">
-            <UserIcon className="size-3" />
-            {news.author.split(" ").slice(0, 2).join(" ")}
-          </span>
-        )}
-      </div>
+          {news.summary ? (
+            <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+              {news.summary}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-2 border-t border-border/60 px-4 py-2.5">
+          <BuildingIcon className="size-3.5 flex-shrink-0 text-muted-foreground" />
+          <span className="flex-1 truncate text-xs text-muted-foreground">{news.university}</span>
+          {news.author ? (
+            <span className="flex flex-shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70">
+              <UserIcon className="size-3" />
+              {news.author.split(" ").slice(0, 2).join(" ")}
+            </span>
+          ) : null}
+        </div>
+      </button>
     </article>
   );
 }
@@ -145,75 +147,131 @@ function StatsBar({ stats }: { stats: StatsResponse | null }) {
 
 function NewsDialog({ news, open, onClose }: { news: News | null; open: boolean; onClose: () => void }) {
   if (!news) return null;
-  const catColor = CATEGORY_COLORS[news.category] ?? CATEGORY_COLORS.General;
+  const category = displayCategory(news.category);
+  const sourceUrl = validSourceUrl(news.source_url);
+  const paragraphs = news.content.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden">
-        {news.image_url && (
-          <div className="relative h-52 overflow-hidden">
-            <img src={news.image_url} alt={news.title} className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-            {news.is_featured && (
-              <span className="absolute left-4 bottom-4 flex items-center gap-1 rounded-full bg-[oklch(var(--gold)/1)] px-3 py-1 text-xs font-bold uppercase text-[oklch(var(--gold-foreground)/1)]">
-                <StarIcon className="size-3" /> Destacada
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="p-6">
-          <DialogHeader>
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide", catColor)}>
-                {news.category}
-              </span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <BuildingIcon className="size-3.5" />
-                {news.university}
-              </span>
-              <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                <CalendarIcon className="size-3.5" />
-                {formatDate(news.published_at ?? news.created_at)}
-              </span>
+      <DialogContent className="h-[calc(100dvh-2rem)] max-h-[900px] max-w-6xl grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-6xl md:h-[min(88dvh,900px)]">
+        <div className="grid h-full min-h-0 grid-rows-[minmax(13rem,34vh)_minmax(0,1fr)] md:grid-cols-[minmax(19rem,0.85fr)_minmax(0,1.15fr)] md:grid-rows-1">
+          {/* Visual y procedencia */}
+          <div className="relative min-h-0 overflow-hidden bg-muted">
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
+              <NewspaperIcon className="size-16 text-primary/20" />
             </div>
-            <DialogTitle className="font-display text-xl font-normal leading-snug text-left">
-              {news.title}
-            </DialogTitle>
-          </DialogHeader>
+            {news.image_url ? (
+              <img
+                src={news.image_url}
+                alt={news.title}
+                className="relative size-full object-cover"
+                onError={(event) => { event.currentTarget.style.display = "none"; }}
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-transparent to-transparent" />
 
-          {news.summary && (
-            <p className="mt-3 text-sm font-medium text-muted-foreground border-l-2 border-primary pl-3 leading-relaxed">
-              {news.summary}
-            </p>
-          )}
+            {news.is_featured ? (
+              <Badge className="absolute left-4 top-4">
+                <StarIcon data-icon="inline-start" />
+                Destacada
+              </Badge>
+            ) : null}
 
-          <Separator className="my-4" />
+            <div className="absolute inset-x-4 bottom-4 rounded-xl border border-border bg-background/90 p-4 shadow-lg backdrop-blur-md md:inset-x-6 md:bottom-6">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                Publicación institucional
+              </p>
+              <div className="flex items-start gap-3">
+                <BuildingIcon className="mt-0.5 size-4 flex-shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{news.university}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarIcon className="size-3" />
+                    {formatDate(news.published_at ?? news.created_at)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <ScrollArea className="max-h-64">
-            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap pr-4">
-              {news.content}
-            </p>
-          </ScrollArea>
+          {/* Lectura */}
+          <div className="flex min-h-0 flex-col bg-popover">
+            <ScrollArea className="min-h-0 flex-1">
+              <article className="px-6 py-7 md:px-8 md:py-9 lg:px-10">
+                <DialogHeader className="pr-8 text-left">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{category}</Badge>
+                    <span className="text-xs text-muted-foreground">Noticia UPLA</span>
+                  </div>
+                  <DialogTitle className="font-display text-3xl font-normal leading-[1.05] text-foreground md:text-4xl">
+                    {news.title}
+                  </DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Detalle completo de la noticia {news.title}
+                  </DialogDescription>
+                </DialogHeader>
 
-          <div className="mt-5 flex items-center justify-between gap-3">
-            {news.author && (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <UserIcon className="size-3.5" />
-                {news.author}
-              </span>
-            )}
-            <div className="flex items-center gap-2 ml-auto">
-              {news.source_url && (
-                <a href={news.source_url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                  <ExternalLinkIcon data-icon="inline-start" className="size-3.5" />
-                  Fuente
+                {news.summary ? (
+                  <p className="mt-6 border-l-2 border-primary bg-primary/5 py-3 pl-5 pr-4 text-base font-medium leading-relaxed text-muted-foreground">
+                    {news.summary}
+                  </p>
+                ) : null}
+
+                <Separator className="my-7" />
+
+                <section aria-labelledby="article-content-title">
+                  <h2 id="article-content-title" className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Artículo completo
+                  </h2>
+                  <div className="flex flex-col gap-4 pr-3 text-[15px] leading-7 text-foreground/85">
+                    {paragraphs.map((paragraph, index) => (
+                      <p key={`${news.id}-${index}`} className="whitespace-pre-line">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              </article>
+            </ScrollArea>
+
+            <div className="flex flex-col gap-3 border-t border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
+              <div className="min-w-0">
+                {news.author ? (
+                  <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                    <UserIcon className="size-3.5" />
+                    {news.author}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Dirección General de Comunicaciones UPLA</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {sourceUrl ? (
+                  <a
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(buttonVariants({ variant: "outline", size: "default" }), "w-full sm:w-auto")}
+                    aria-label={`Abrir fuente original de ${news.title}`}
+                  >
+                    <ExternalLinkIcon data-icon="inline-start" />
+                    Ver fuente original
+                  </a>
+                ) : (
+                  <Button variant="outline" disabled className="w-full sm:w-auto">
+                    <ExternalLinkIcon data-icon="inline-start" />
+                    Fuente no disponible
+                  </Button>
+                )}
+                <a
+                  href={`/chat?news=${news.id}`}
+                  className={cn(buttonVariants({ size: "default" }), "w-full sm:w-auto")}
+                  aria-label={`Preguntar a la IA sobre ${news.title}`}
+                >
+                  <SparklesIcon data-icon="inline-start" />
+                  Preguntar sobre esta noticia
                 </a>
-              )}
-              <a href="/chat" className={cn(buttonVariants({ size: "sm" }))}>
-                <SparklesIcon data-icon="inline-start" className="size-3.5" />
-                Preguntar a la IA
-              </a>
+              </div>
             </div>
           </div>
         </div>

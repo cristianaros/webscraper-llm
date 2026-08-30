@@ -147,13 +147,16 @@ export async function scrapeUplaNews(limit: number): Promise<ScrapeUplaResponse>
 
 // ─── Chat endpoint ────────────────────────────────────────────
 
-export async function sendChatMessage(question: string): Promise<ChatResponse> {
+export async function sendChatMessage(question: string, newsId?: number): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/chat/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, news_id: newsId }),
   });
-  if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Chat failed: ${res.status}`);
+  }
   return res.json();
 }
 

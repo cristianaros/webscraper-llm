@@ -3,7 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { sendChatMessage, fetchRagStatus, type ChatResponse } from "@/lib/api";
+import {
+  sendChatMessage,
+  fetchNewsById,
+  fetchRagStatus,
+  type ChatResponse,
+  type News,
+} from "@/lib/api";
 import {
   SparklesIcon, SendIcon, UserIcon, BotIcon, InfoIcon, NewspaperIcon, RefreshCwIcon,
 } from "@/lib/icons";
@@ -26,6 +32,19 @@ const SUGGESTIONS = [
   "Dime qué actividades culturales se realizarán pronto",
 ];
 
+const SCOPED_SUGGESTIONS = [
+  "Dame un resumen breve de esta noticia",
+  "¿Cuáles son los datos y personas más importantes?",
+  "¿Qué impacto tiene esta noticia para la comunidad UPLA?",
+];
+
+function requestedNewsId() {
+  if (typeof window === "undefined") return undefined;
+
+  const newsId = Number(new URLSearchParams(window.location.search).get("news"));
+  return Number.isInteger(newsId) && newsId > 0 ? newsId : undefined;
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -38,6 +57,7 @@ export default function ChatInterface() {
   const [loading, setLoading] = useState(false);
   const [ragStatus, setRagStatus] = useState<{ status: string; count: number } | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [scopedNews, setScopedNews] = useState<News | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const checkStatus = () => {
@@ -63,9 +83,18 @@ export default function ChatInterface() {
   }, []);
 
   useEffect(() => {
+    const newsId = requestedNewsId();
+    if (!newsId) return;
+
+    fetchNewsById(newsId)
+      .then(setScopedNews)
+      .catch(() => toast.error("No se pudo cargar la noticia seleccionada."));
+  }, []);
+
+  useEffect(() => {
     // Scroll to bottom of chat area when messages change
     if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector("[data-radix-scroll-area-viewport]");
+      const scrollContainer = scrollAreaRef.current.querySelector("[data-slot='scroll-area-viewport']");
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
@@ -86,7 +115,7 @@ export default function ChatInterface() {
     setLoading(true);
 
     try {
-      const res = await sendChatMessage(text);
+      const res = await sendChatMessage(text, scopedNews?.id ?? requestedNewsId());
       const assistantMessage: Message = {
         role: "assistant",
         content: res.answer,
@@ -109,6 +138,20 @@ export default function ChatInterface() {
     }
   };
 
+  const clearNewsScope = () => {
+    window.history.replaceState({}, "", window.location.pathname);
+    setScopedNews(null);
+    setMessages([
+      {
+        role: "assistant",
+        content: "Ahora puedes preguntarme sobre cualquiera de las noticias indexadas en UniNews.",
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const suggestions = scopedNews ? SCOPED_SUGGESTIONS : SUGGESTIONS;
+
   return (
     <div className="mx-auto max-w-screen-md px-4 py-6">
       <div className="flex flex-col rounded-xl border border-border bg-card overflow-hidden h-[calc(100vh-12rem)] min-h-[500px]">
@@ -120,7 +163,9 @@ export default function ChatInterface() {
             </div>
             <div>
               <h2 className="font-display text-lg font-normal">Asistente UniNews IA</h2>
-              <p className="text-xs text-muted-foreground">MiniMax M3 vía OpenRouter + RAG</p>
+              <p className="text-xs text-muted-foreground">
+                {scopedNews ? "Consulta enfocada en una noticia" : "MiniMax M3 vía OpenRouter + RAG"}
+              </p>
             </div>
           </div>
 
@@ -147,10 +192,35 @@ export default function ChatInterface() {
               onClick={checkStatus}
               disabled={checkingStatus}
             >
-              <RefreshCwIcon className={cn("size-3.5", checkingStatus && "animate-spin")} />
+              <RefreshCwIcon data-icon="inline-start" className={cn(checkingStatus && "animate-spin")} />
             </Button>
           </div>
         </div>
+
+        {scopedNews ? (
+          <div className="flex items-center gap-3 border-b border-border bg-primary/5 px-4 py-3 sm:px-6">
+            {scopedNews.image_url ? (
+              <img
+                src={scopedNews.image_url}
+                alt=""
+                className="size-11 flex-shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="flex size-11 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <NewspaperIcon className="size-5" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">Preguntando sobre</p>
+              <p className="truncate text-sm font-medium text-foreground" title={scopedNews.title}>
+                {scopedNews.title}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={clearNewsScope} className="flex-shrink-0">
+              Consultar todas
+            </Button>
+          </div>
+        ) : null}
 
         {/* Messages */}
         <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
@@ -192,16 +262,31 @@ export default function ChatInterface() {
                         Fuentes consultadas:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {msg.sources.map((src, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="secondary"
-                            className="text-[11px] font-normal py-0.5 px-2 bg-muted/80 border border-border max-w-xs truncate"
-                            title={`${src.title} (${src.university})`}
-                          >
-                            {src.title}
-                          </Badge>
-                        ))}
+                        {msg.sources.map((src, idx) =>
+                          src.source_url ? (
+                            <a
+                              key={`${src.news_id}-${idx}`}
+                              href={src.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="max-w-xs"
+                              title={`${src.title} (${src.university})`}
+                            >
+                              <Badge variant="secondary" className="max-w-full truncate font-normal">
+                                {src.title}
+                              </Badge>
+                            </a>
+                          ) : (
+                            <Badge
+                              key={`${src.news_id}-${idx}`}
+                              variant="secondary"
+                              className="max-w-xs truncate font-normal"
+                              title={`${src.title} (${src.university})`}
+                            >
+                              {src.title}
+                            </Badge>
+                          )
+                        )}
                       </div>
                     </div>
                   )}
@@ -232,7 +317,7 @@ export default function ChatInterface() {
             <div className="mb-4">
               <span className="text-xs font-semibold text-muted-foreground block mb-2">Preguntas recomendadas:</span>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((sug, i) => (
+                {suggestions.map((sug, i) => (
                   <button
                     key={i}
                     onClick={() => handleSubmit(sug)}
@@ -254,7 +339,7 @@ export default function ChatInterface() {
           >
             <div className="relative flex-1">
               <Textarea
-                placeholder="Pregunta sobre las noticias indexadas..."
+                placeholder={scopedNews ? "Pregunta sobre esta noticia..." : "Pregunta sobre las noticias indexadas..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -268,7 +353,7 @@ export default function ChatInterface() {
               />
             </div>
             <Button type="submit" size="icon" disabled={!input.trim() || loading} className="shrink-0 h-[44px] w-[44px]">
-              <SendIcon className="size-4" />
+              <SendIcon data-icon="inline-start" />
             </Button>
           </form>
           <div className="mt-2 text-center text-[10px] text-muted-foreground flex items-center justify-center gap-1">

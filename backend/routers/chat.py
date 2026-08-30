@@ -19,7 +19,10 @@ def chat(request: ChatRequest):
         )
 
     try:
-        result = app_state.rag_engine.query(question=request.question)
+        result = app_state.rag_engine.query(
+            question=request.question,
+            news_id=request.news_id,
+        )
     except OpenRouterError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ChatResponse(

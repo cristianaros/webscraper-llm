@@ -19,8 +19,7 @@ class RAGEngine:
     def __init__(self):
         self.llm = OpenRouterClient()
 
-        # La coleccion v2 usa embeddings locales y no es compatible en dimensiones
-        # con el indice Gemini anterior.
+        # La coleccion v2 usa embeddings locales y no es compatible en dimensionesS
         local_embeddings = embedding_functions.DefaultEmbeddingFunction()
         self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
         self.collection = self.chroma_client.get_or_create_collection(
@@ -83,7 +82,12 @@ class RAGEngine:
     def summarize_news(self, title: str, content: str) -> str:
         return self.llm.summarize_news(title, content)
 
-    def query(self, question: str, n_results: int = 4) -> dict:
+    def query(
+        self,
+        question: str,
+        n_results: int = 4,
+        news_id: Optional[int] = None,
+    ) -> dict:
         """Pregunta -> embedding local -> retrieval -> MiniMax M3 -> respuesta."""
         total_docs = self.collection.count()
         if total_docs == 0:
@@ -95,20 +99,42 @@ class RAGEngine:
                 "sources": [],
             }
 
-        results = self.collection.query(
-            query_texts=[question],
-            n_results=min(n_results, total_docs),
-            include=["documents", "metadatas", "distances"],
-        )
+        if news_id is not None:
+            selected = self.collection.get(
+                ids=[str(news_id)],
+                include=["documents", "metadatas"],
+            )
+            selected_documents = selected.get("documents") or []
+            selected_metadatas = selected.get("metadatas") or []
+            relevant = [
+                (document, metadata, 0.0)
+                for document, metadata in zip(selected_documents, selected_metadatas)
+            ]
+            if not relevant:
+                return {
+                    "answer": (
+                        "La noticia seleccionada no esta disponible en el indice. "
+                        "Actualizala desde el panel de administracion e intenta nuevamente."
+                    ),
+                    "sources": [],
+                }
+        else:
+            results = self.collection.query(
+                query_texts=[question],
+                n_results=min(n_results, total_docs),
+                include=["documents", "metadatas", "distances"],
+            )
 
-        documents = (results.get("documents") or [[]])[0]
-        metadatas = (results.get("metadatas") or [[]])[0]
-        distances = (results.get("distances") or [[]])[0]
-        relevant = [
-            (document, metadata, distance)
-            for document, metadata, distance in zip(documents, metadatas, distances)
-            if distance <= self.max_distance
-        ]
+            documents = (results.get("documents") or [[]])[0]
+            metadatas = (results.get("metadatas") or [[]])[0]
+            distances = (results.get("distances") or [[]])[0]
+            relevant = [
+                (document, metadata, distance)
+                for document, metadata, distance in zip(
+                    documents, metadatas, distances
+                )
+                if distance <= self.max_distance
+            ]
 
         if not relevant:
             return {

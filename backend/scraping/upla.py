@@ -266,7 +266,15 @@ def _parse_date(value: Any, url: str) -> Optional[datetime]:
 
 def _normalize_category(value: Any) -> str:
     text = _clean_text(value)
-    if not text:
+    if not text or text.lower() in {
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "no content available",
+        "not available",
+        "sin categoria",
+    }:
         return "General"
     aliases = {
         "academia": "Academia",
