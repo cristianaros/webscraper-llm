@@ -530,7 +530,7 @@ def load_sample_data():
         new_titles = {n["title"] for n in new_entries}
 
         # Indexar en RAG si hay API key
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if api_key and api_key != "tu_api_key_aqui":
             try:
                 from rag.engine import RAGEngine
@@ -549,6 +549,8 @@ def load_sample_data():
                         category=news.category,
                         university=news.university,
                         summary=news.summary,
+                        source_url=news.source_url,
+                        published_at=news.published_at,
                     )
                     print(f"   [RAG] Indexada: {news.title[:60]}")
                 print(
@@ -559,7 +561,7 @@ def load_sample_data():
                 print("   Ejecuta el servidor y las noticias se indexaran al crearlas.")
         else:
             print(
-                "[WARN] GEMINI_API_KEY no configurada. Configura tu .env para habilitar el RAG."
+                "[WARN] OPENROUTER_API_KEY no configurada. Configura backend/.env para habilitar el RAG."
             )
 
     finally:

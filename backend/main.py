@@ -6,11 +6,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from database import engine
+from database import engine, ensure_schema
 import models
 import app_state
 from rag.engine import RAGEngine
-from routers import news, chat
+from routers import news, chat, scraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     """Inicializa recursos al arrancar y los limpia al cerrar."""
     # Crear tablas en la base de datos
     models.Base.metadata.create_all(bind=engine)
+    ensure_schema()
     logger.info("Base de datos inicializada.")
 
     # Inicializar motor RAG
@@ -43,13 +44,17 @@ async def lifespan(app: FastAPI):
                         category=news.category,
                         university=news.university,
                         summary=news.summary,
+                        source_url=news.source_url,
+                        published_at=news.published_at,
                     )
                 logger.info(f"Indexación inicial completada. {len(db_news)} noticias indexadas.")
             finally:
                 db.close()
     except Exception as e:
         logger.error(f"Error al inicializar RAG: {e}")
-        logger.warning("El sistema funcionará sin IA. Verifica tu GEMINI_API_KEY en .env")
+        logger.warning(
+            "El sistema funcionara sin IA. Verifica OPENROUTER_API_KEY y OPENROUTER_MODEL."
+        )
         app_state.rag_engine = None
 
     yield
@@ -60,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="🎓 UniNews — Sistema de Noticias Universitarias",
     description=(
-        "API REST con IA (Google Gemini + RAG) para gestión de noticias universitarias. "
+        "API REST con ScrapeGraphAI, OpenRouter y RAG para noticias universitarias. "
         "Permite crear, editar y consultar noticias con un asistente inteligente."
     ),
     version="1.0.0",
@@ -79,6 +84,7 @@ app.add_middleware(
 # Registrar routers
 app.include_router(news.router)
 app.include_router(chat.router)
+app.include_router(scraper.router)
 
 
 @app.get("/")
@@ -89,6 +95,7 @@ def root():
         "docs": "/docs",
         "status": "running",
         "rag_active": app_state.rag_engine is not None,
+        "model": app_state.rag_engine.model_name if app_state.rag_engine else None,
     }
 
 

@@ -58,7 +58,8 @@ def list_news(
             models.News.title.contains(search) | models.News.content.contains(search)
         )
 
-    return query.order_by(models.News.created_at.desc()).offset(skip).limit(limit).all()
+    publication_date = func.coalesce(models.News.published_at, models.News.created_at)
+    return query.order_by(publication_date.desc()).offset(skip).limit(limit).all()
 
 
 # -----------------------------------------------------------------------
@@ -92,6 +93,8 @@ def create_news(news_in: schemas.NewsCreate, db: Session = Depends(get_db)):
                 category=news.category,
                 university=news.university,
                 summary=news.summary,
+                source_url=news.source_url,
+                published_at=news.published_at,
             )
         except Exception as e:
             print(f"[RAG] Warning: no se pudo indexar la noticia {news.id}: {e}")
@@ -125,6 +128,8 @@ def update_news(news_id: int, news_in: schemas.NewsUpdate, db: Session = Depends
                 category=news.category,
                 university=news.university,
                 summary=news.summary,
+                source_url=news.source_url,
+                published_at=news.published_at,
             )
         except Exception as e:
             print(f"[RAG] Warning: no se pudo re-indexar la noticia {news.id}: {e}")

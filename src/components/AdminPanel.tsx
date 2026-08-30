@@ -4,22 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  fetchNews, fetchStats, createNews, updateNews, deleteNews,
+  fetchNews, fetchStats, createNews, updateNews, deleteNews, scrapeUplaNews,
   type News, type NewsCreate, type StatsResponse,
 } from "@/lib/api";
 import {
   PlusIcon, EditIcon, TrashIcon, SearchIcon, RefreshIcon,
   LayoutDashboardIcon, ListIcon, NewspaperIcon, StarIcon,
-  BuildingIcon, TagIcon, DatabaseIcon, CalendarIcon,
+  BuildingIcon, TagIcon, DatabaseIcon,
 } from "@/lib/icons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -27,13 +25,13 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-const CATEGORIES = ["Becas", "Investigación", "Infraestructura", "Cultura", "Logros", "Empleo", "Bienestar", "Tecnología", "General"];
-const UNIVERSITIES = ["Universidad Central", "Universidad Politécnica", "Universidad de las Artes", "Otra"];
+const CATEGORIES = ["Academia", "Becas", "Cultura", "Deportes", "Destacados", "Empleo", "En los medios", "Género", "Infraestructura", "Investigación", "Logros", "Opinión", "Tecnología", "General"];
+const UNIVERSITIES = ["Universidad de Playa Ancha", "Universidad Central", "Universidad Politécnica", "Universidad de las Artes", "Otra"];
 
 const DEFAULT_FORM: NewsCreate = {
   title: "",
@@ -112,14 +110,16 @@ function NewsForm({
         {/* Categoría */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-foreground">Categoría *</label>
-          <Select value={form.category} onValueChange={(v) => set("category", v)}>
+          <Select value={form.category} onValueChange={(value) => value && set("category", value)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
+              <SelectGroup>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
@@ -218,7 +218,9 @@ export default function AdminPanel() {
   const [editNews, setEditNews] = useState<News | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [scrapeOpen, setScrapeOpen] = useState(false);
+  const [scraping, setScraping] = useState(false);
+  const [scrapeLimit, setScrapeLimit] = useState("5");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -231,7 +233,10 @@ export default function AdminPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const filtered = search
     ? news.filter((n) => n.title.toLowerCase().includes(search.toLowerCase()) || n.university.toLowerCase().includes(search.toLowerCase()))
@@ -249,10 +254,10 @@ export default function AdminPanel() {
       }
       setDialogOpen(false);
       setEditNews(null);
-      setIsCreating(false);
       load();
-    } catch (err: any) {
-      toast.error(err.message || "Error al guardar la noticia.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error al guardar la noticia.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -270,15 +275,30 @@ export default function AdminPanel() {
     }
   }
 
+  async function handleScrape() {
+    setScraping(true);
+    try {
+      const result = await scrapeUplaNews(Number(scrapeLimit));
+      toast.success(
+        `Importación finalizada: ${result.created} nuevas, ${result.skipped} existentes, ${result.failed} con error.`
+      );
+      setScrapeOpen(false);
+      load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo importar desde UPLA.";
+      toast.error(message);
+    } finally {
+      setScraping(false);
+    }
+  }
+
   function openEdit(n: News) {
     setEditNews(n);
-    setIsCreating(false);
     setDialogOpen(true);
   }
 
   function openCreate() {
     setEditNews(null);
-    setIsCreating(true);
     setDialogOpen(true);
   }
 
@@ -290,10 +310,16 @@ export default function AdminPanel() {
           <h1 className="font-display text-3xl font-normal text-foreground">Panel de Administración</h1>
           <p className="mt-1 text-sm text-muted-foreground">Gestiona el contenido del portal de noticias universitarias.</p>
         </div>
-        <Button onClick={openCreate}>
-          <PlusIcon data-icon="inline-start" className="size-4" />
-          Nueva noticia
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setScrapeOpen(true)}>
+            <DatabaseIcon data-icon="inline-start" />
+            Importar UPLA
+          </Button>
+          <Button onClick={openCreate}>
+            <PlusIcon data-icon="inline-start" />
+            Nueva noticia
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="dashboard">
@@ -425,7 +451,7 @@ export default function AdminPanel() {
                           </td>
                           <td className="hidden px-4 py-3 text-muted-foreground md:table-cell truncate max-w-[160px]">{n.university}</td>
                           <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                            {formatDate(n.created_at)}
+                            {formatDate(n.published_at ?? n.created_at)}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
@@ -468,6 +494,7 @@ export default function AdminPanel() {
                   author: editNews.author ?? "",
                   image_url: editNews.image_url ?? "",
                   source_url: editNews.source_url ?? "",
+                  published_at: editNews.published_at ?? undefined,
                   is_featured: editNews.is_featured,
                 } : undefined}
                 onSave={handleSave}
@@ -476,6 +503,51 @@ export default function AdminPanel() {
               />
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* UPLA scraper */}
+      <Dialog open={scrapeOpen} onOpenChange={(open) => !scraping && setScrapeOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar noticias de UPLA</DialogTitle>
+            <DialogDescription>
+              ScrapeGraphAI extraerá las noticias más recientes y MiniMax M3 generará cada resumen. Las URLs ya guardadas se omitirán automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="scrape-limit" className="text-sm font-medium text-foreground">
+              Cantidad de noticias
+            </label>
+            <Select value={scrapeLimit} onValueChange={(value) => value && setScrapeLimit(value)} disabled={scraping}>
+              <SelectTrigger id="scrape-limit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {[3, 5, 10].map((amount) => (
+                    <SelectItem key={amount} value={String(amount)}>
+                      {amount} noticias
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              ScrapeGraphAI consume una extracción para el listado y otra por cada noticia nueva.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setScrapeOpen(false)} disabled={scraping}>
+              Cancelar
+            </Button>
+            <Button onClick={handleScrape} disabled={scraping}>
+              <RefreshIcon data-icon="inline-start" className={cn(scraping && "animate-spin")} />
+              {scraping ? "Importando…" : "Iniciar importación"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
