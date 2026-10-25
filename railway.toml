@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "deploy/Dockerfile.api"
+
+[deploy]
+releaseCommand = "sh -c 'cd /app && python -m alembic --config backend/alembic.ini upgrade head'"
+startCommand   = "sh -c 'cd /app && python -m uvicorn main:app --app-dir backend --host 0.0.0.0 --port $PORT --workers 1'"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
