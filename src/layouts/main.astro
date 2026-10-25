@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import SpeedInsights from "@vercel/speed-insights/astro"
 
 interface Props {
   title: string;
@@ -137,5 +138,6 @@ const formattedDate = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
         </div>
       </div>
     </footer>
+    <SpeedInsights />
   </body>
 </html>
