@@ -35,6 +35,12 @@ class NewsUpdate(BaseModel):
 
 class NewsResponse(NewsBase):
     id: int
+    university_id: Optional[int] = None
+    published_on: Optional[datetime] = None
+    date_precision: Optional[str] = None
+    publication_status: str = "published"
+    image_status: str = "not_found"
+    image_sha256: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -43,8 +49,8 @@ class NewsResponse(NewsBase):
 
 
 class ChatRequest(BaseModel):
-    question: str
-    news_id: Optional[int] = None
+    question: str = Field(min_length=1, max_length=1000)
+    news_id: Optional[int] = Field(default=None, gt=0)
     history: list = Field(default_factory=list)
 
 
@@ -58,25 +64,3 @@ class StatsResponse(BaseModel):
     categories: dict
     universities: list
     featured_count: int
-
-
-class ScrapeUplaRequest(BaseModel):
-    limit: int = Field(default=5, ge=1, le=10)
-
-
-class ScrapeItemResult(BaseModel):
-    title: str
-    source_url: str
-    status: str
-    news_id: Optional[int] = None
-    error: Optional[str] = None
-
-
-class ScrapeUplaResponse(BaseModel):
-    requested: int
-    found: int
-    created: int
-    skipped: int
-    failed: int
-    model: str
-    items: list[ScrapeItemResult] = Field(default_factory=list)

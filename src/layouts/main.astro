@@ -9,89 +9,133 @@ interface Props {
 
 const {
   title,
-  description = "Plataforma de noticias universitarias con ScrapeGraphAI, MiniMax M3, OpenRouter y RAG.",
+  description = "Plataforma de periodismo universitario e inteligencia artificial con RAG.",
   activePage = "home",
 } = Astro.props;
+
+const todayStr = new Intl.DateTimeFormat("es-ES", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+}).format(new Date());
+const formattedDate = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 ---
 
 <!doctype html>
-<html lang="es" class="dark">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title} — UniNews</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#0f172a" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23D8232A'/><text x='50%' y='65%' font-family='sans-serif' font-weight='bold' font-size='55' fill='white' text-anchor='middle'>UN</text></svg>" />
   </head>
-  <body>
-    <!-- Top navigation bar -->
-    <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-lg">
-      <div class="mx-auto flex h-16 max-w-screen-xl items-center justify-between gap-6 px-6">
-        <!-- Brand -->
-        <a href="/" class="flex items-center gap-3 no-underline">
-          <div class="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-bold shadow-sm">
-            U
-          </div>
-          <div class="hidden sm:block">
-            <span class="font-display text-lg font-normal text-foreground leading-none">UniNews</span>
-            <p class="text-[10px] text-muted-foreground leading-none mt-0.5 tracking-widest uppercase">Portal Universitario</p>
-          </div>
-        </a>
+  <body class="bg-background text-foreground antialiased min-h-screen flex flex-col">
+    <!-- Barra superior de utilidad y edición -->
+    <div class="border-b border-border/80 bg-background text-[11px] text-muted-foreground">
+      <div class="mx-auto flex max-w-screen-xl items-center justify-between px-4 py-1.5 sm:px-6">
+        <div class="flex items-center gap-3">
+          <span class="font-medium text-foreground/80">{formattedDate}</span>
+          <span class="hidden sm:inline text-border">|</span>
+          <span class="hidden sm:inline">Edición Digital · Noticias Universitarias</span>
+        </div>
 
-        <!-- Nav links -->
-        <nav class="flex items-center gap-1">
-          <a
-            href="/"
-            class:list={[
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              activePage === "home"
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            ]}
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            <span class="hidden sm:inline">Noticias</span>
+        <div class="flex items-center gap-4">
+          <nav class="flex items-center gap-3 font-medium">
+            <a
+              href="/"
+              class:list={[
+                "transition-colors hover:text-foreground",
+                activePage === "home" ? "text-primary font-semibold" : "text-muted-foreground",
+              ]}
+            >
+              Noticias
+            </a>
+            <span class="text-border">·</span>
+            <a
+              href="/admin"
+              class:list={[
+                "transition-colors hover:text-foreground",
+                activePage === "admin" ? "text-primary font-semibold" : "text-muted-foreground",
+              ]}
+            >
+              Administrar
+            </a>
+            <span class="text-border">·</span>
+            <a
+              href="/chat"
+              class:list={[
+                "inline-flex items-center gap-1 transition-colors hover:text-foreground",
+                activePage === "chat" ? "text-primary font-semibold" : "text-primary/90 font-medium",
+              ]}
+            >
+              <span class="inline-block size-1.5 rounded-full bg-primary animate-pulse"></span>
+              Asistente IA
+            </a>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cabecera Principal (Masthead estilo La Tercera con logo UN + UNINEWS) -->
+    <header class="border-b border-border bg-background">
+      <div class="mx-auto max-w-screen-xl px-4 py-5 sm:px-6">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <!-- Espacio izquierdo en desktop (o lema informativo) -->
+          <div class="hidden lg:flex flex-col text-xs text-muted-foreground max-w-xs leading-relaxed">
+            <span class="font-semibold text-foreground tracking-wide uppercase text-[10px]">Portal de Noticias</span>
+            <span>UPLA y Sistema Universitario Nacional con Inteligencia Artificial</span>
+          </div>
+
+          <!-- Logotipo central / derecho réplica exacta del estilo La Tercera -->
+          <a href="/" class="flex flex-col items-center sm:items-end no-underline group">
+            <div class="flex items-center gap-2.5">
+              <!-- Recuadro rojo 'UN' idéntico a 'LT' de La Tercera -->
+              <div class="flex size-9 sm:size-10 items-center justify-center bg-[#D8232A] text-white font-black text-xl sm:text-2xl tracking-tighter shadow-xs select-none">
+                UN
+              </div>
+              <!-- Tipografía UNINEWS en mayúsculas negritas sin serifa -->
+              <span class="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground transition-colors group-hover:text-[#D8232A]">
+                UNINEWS
+              </span>
+            </div>
+            <!-- Subtítulo en cursiva 'periodismo universitario...' -->
+            <p class="font-display italic text-xs sm:text-sm text-muted-foreground tracking-normal mt-0.5 select-none">
+              periodismo universitario con inteligencia artificial
+            </p>
           </a>
-          <a
-            href="/admin"
-            class:list={[
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              activePage === "admin"
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            ]}
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="7" height="9" x="3" y="3" rx="1"/>
-              <rect width="7" height="5" x="14" y="3" rx="1"/>
-              <rect width="7" height="9" x="14" y="12" rx="1"/>
-              <rect width="7" height="5" x="3" y="16" rx="1"/>
-            </svg>
-            <span class="hidden sm:inline">Administrar</span>
-          </a>
-          <a
-            href="/chat"
-            class:list={[
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              activePage === "chat"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-primary/10 text-primary hover:bg-primary/20",
-            ]}
-          >
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-            </svg>
-            <span class="hidden sm:inline">Asistente IA</span>
-          </a>
-        </nav>
+        </div>
       </div>
     </header>
 
-    <!-- Page content -->
-    <slot />
+    <!-- Contenido principal -->
+    <div class="flex-1">
+      <slot />
+    </div>
+
+    <!-- Pie de página editorial estilo periódico -->
+    <footer class="mt-16 border-t-2 border-foreground bg-background py-10 text-xs text-muted-foreground">
+      <div class="mx-auto max-w-screen-xl px-4 sm:px-6">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6 pb-6 border-b border-border">
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-7 items-center justify-center bg-[#D8232A] text-white font-black text-base select-none">
+              UN
+            </div>
+            <span class="text-xl font-bold tracking-tight text-foreground">UNINEWS</span>
+          </div>
+          <div class="flex flex-wrap items-center justify-center gap-6 font-medium text-foreground/80">
+            <a href="/" class="hover:text-primary transition-colors">Portada</a>
+            <a href="/admin" class="hover:text-primary transition-colors">Panel de Redacción</a>
+            <a href="/chat" class="hover:text-primary transition-colors">Consulta Inteligente RAG</a>
+          </div>
+        </div>
+        <div class="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px]">
+          <p>© {new Date().getFullYear()} UniNews. Adaptación de periodismo universitario e inteligencia artificial.</p>
+          <p class="text-muted-foreground">Fuentes institucionales UPLA y OpenRouter LLM</p>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>

@@ -1,0 +1,44 @@
+services:
+  api:
+    build: {context: .., dockerfile: deploy/Dockerfile.api}
+    env_file: server.env
+    environment:
+      DATABASE_URL: sqlite:////data/university_news.db
+      CHROMA_PATH: /data/chroma_db
+      RAG_ENABLED: "false"
+    volumes: [server_data:/data]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  web:
+    build: {context: .., dockerfile: deploy/Dockerfile.web}
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+  proxy:
+    image: caddy:2
+    profiles: [https]
+    env_file: server.env
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    restart: unless-stopped
+  backup:
+    build: {context: .., dockerfile: deploy/Dockerfile.api}
+    command: [python, -m, backend.scripts.backup_db, --database, /data/university_news.db, --directory, /backups, --interval-hours, "24", --keep, "7"]
+    volumes: [server_data:/data, backups:/backups]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+volumes:
+  server_data:
+  backups:
+  caddy_data:
+  caddy_config:

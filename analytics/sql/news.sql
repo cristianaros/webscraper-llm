@@ -1,0 +1,2 @@
+-- BigQuery tables are created by the upload adapter after local acceptance.
+-- The canonical column/type mapping is analytics.schema.NEWS_COLUMNS.

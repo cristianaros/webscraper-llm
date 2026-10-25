@@ -5,8 +5,8 @@ __pycache__/
 venv/
 .env
 .env.*
-!.env.example
-!backend/.env.example
+.env.example
+*.env.example
 
 # ── Base de datos ────────────────────────────────────────────────
 *.db
@@ -31,3 +31,17 @@ pnpm-debug.log*
 # ── OS ───────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# UniNews local runtime and test artifacts
+.venv/
+.venv-collector/
+data/
+artifacts/
+evaluation/corpus/
+*-wal
+*-shm
+.pytest_cache/
+playwright-report/
+test-results/
+deploy/server.env
+deploy/server.env.example

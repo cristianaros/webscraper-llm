@@ -6,3 +6,6 @@ httpx>=0.27,<1
 python-dotenv
 python-multipart
 aiofiles
+alembic>=1.14,<2
+pydantic-settings>=2,<3
+tzdata

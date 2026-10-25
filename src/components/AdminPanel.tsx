@@ -4,20 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  fetchNews, fetchStats, createNews, updateNews, deleteNews, scrapeUplaNews,
+  fetchNews, fetchStats, createNews, updateNews, deleteNews,
   type News, type NewsCreate, type StatsResponse,
 } from "@/lib/api";
 import {
   PlusIcon, EditIcon, TrashIcon, SearchIcon, RefreshIcon,
   LayoutDashboardIcon, ListIcon, NewspaperIcon, StarIcon,
-  BuildingIcon, TagIcon, DatabaseIcon,
+  BuildingIcon, TagIcon,
 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AdminGate } from "@/components/admin/AdminGate";
+import { CollectionAdmin } from "@/components/admin/CollectionAdmin";
 
 const CATEGORIES = ["Academia", "Becas", "Cultura", "Deportes", "Destacados", "Empleo", "En los medios", "Género", "Infraestructura", "Investigación", "Logros", "Opinión", "Tecnología", "General"];
 const UNIVERSITIES = ["Universidad de Playa Ancha", "Universidad Central", "Universidad Politécnica", "Universidad de las Artes", "Otra"];
@@ -68,6 +70,10 @@ function StatCard({ label, value, icon: Icon, accent = false }: {
       </div>
     </div>
   );
+}
+
+export default function AdminPanel() {
+  return <AdminGate>{(token) => <><LegacyAdminPanel /><CollectionAdmin token={token} /></>}</AdminGate>;
 }
 
 // ─── News Form ────────────────────────────────────────────────
@@ -209,7 +215,7 @@ function NewsForm({
 
 // ─── Admin Panel ──────────────────────────────────────────────
 
-export default function AdminPanel() {
+function LegacyAdminPanel() {
   const [news, setNews] = useState<News[]>([]);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -218,9 +224,6 @@ export default function AdminPanel() {
   const [editNews, setEditNews] = useState<News | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [scrapeOpen, setScrapeOpen] = useState(false);
-  const [scraping, setScraping] = useState(false);
-  const [scrapeLimit, setScrapeLimit] = useState("5");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -275,23 +278,6 @@ export default function AdminPanel() {
     }
   }
 
-  async function handleScrape() {
-    setScraping(true);
-    try {
-      const result = await scrapeUplaNews(Number(scrapeLimit));
-      toast.success(
-        `Importación finalizada: ${result.created} nuevas, ${result.skipped} existentes, ${result.failed} con error.`
-      );
-      setScrapeOpen(false);
-      load();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo importar desde UPLA.";
-      toast.error(message);
-    } finally {
-      setScraping(false);
-    }
-  }
-
   function openEdit(n: News) {
     setEditNews(n);
     setDialogOpen(true);
@@ -311,10 +297,6 @@ export default function AdminPanel() {
           <p className="mt-1 text-sm text-muted-foreground">Gestiona el contenido del portal de noticias universitarias.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setScrapeOpen(true)}>
-            <DatabaseIcon data-icon="inline-start" />
-            Importar UPLA
-          </Button>
           <Button onClick={openCreate}>
             <PlusIcon data-icon="inline-start" />
             Nueva noticia
@@ -503,51 +485,6 @@ export default function AdminPanel() {
               />
             </div>
           </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      {/* UPLA scraper */}
-      <Dialog open={scrapeOpen} onOpenChange={(open) => !scraping && setScrapeOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Importar noticias de UPLA</DialogTitle>
-            <DialogDescription>
-              ScrapeGraphAI extraerá las noticias más recientes y MiniMax M3 generará cada resumen. Las URLs ya guardadas se omitirán automáticamente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-2">
-            <label htmlFor="scrape-limit" className="text-sm font-medium text-foreground">
-              Cantidad de noticias
-            </label>
-            <Select value={scrapeLimit} onValueChange={(value) => value && setScrapeLimit(value)} disabled={scraping}>
-              <SelectTrigger id="scrape-limit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {[3, 5, 10].map((amount) => (
-                    <SelectItem key={amount} value={String(amount)}>
-                      {amount} noticias
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              ScrapeGraphAI consume una extracción para el listado y otra por cada noticia nueva.
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setScrapeOpen(false)} disabled={scraping}>
-              Cancelar
-            </Button>
-            <Button onClick={handleScrape} disabled={scraping}>
-              <RefreshIcon data-icon="inline-start" className={cn(scraping && "animate-spin")} />
-              {scraping ? "Importando…" : "Iniciar importación"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

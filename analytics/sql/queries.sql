@@ -1,0 +1,1 @@
+-- Parameterized analytical queries belong here; never query the full event history for routine charts.

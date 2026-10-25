@@ -1,142 +1,84 @@
-# UniNews UPLA
+﻿# UniNews
 
-Plataforma para importar noticias de la [Universidad de Playa Ancha](https://upla.cl/noticias/), almacenarlas y consultarlas mediante un chat con RAG.
+UniNews es una plataforma local para recopilar, revisar y publicar noticias universitarias con trazabilidad. El recolector está implementado en Python y usa `minimax/minimax-m3:free` mediante OpenRouter cuando se ejecuta con credenciales configuradas. La aplicación web está construida con Astro y React; la API usa FastAPI y SQLite para desarrollo local.
 
-El flujo principal es:
+## Estado
 
-```text
-UPLA → ScrapeGraphAI → MiniMax M3 (resumen) → SQLite + ChromaDB
-                                                    ↓
-Pregunta → retrieval local → MiniMax M3/OpenRouter → respuesta con fuentes
-```
+La implementación principal está avanzada y las pruebas actuales pasan, pero la aceptación final sigue pendiente de cerrar los entregables locales de retry/backup, evaluación AC10 y verificación de Scheduled Task en Windows. Consulta [docs/PROJECT_STATUS_2026-09-07.md](docs/PROJECT_STATUS_2026-09-07.md) para continuar el trabajo.
 
-## Características
+## Estructura
 
-- Importación manual de las noticias UPLA más recientes desde el panel administrador.
-- Extracción estructurada del listado y de cada artículo con ScrapeGraphAI v2.
-- Deduplicación por URL antes de consumir la extracción de cada noticia.
-- Resúmenes en español generados por MiniMax M3 a través de OpenRouter.
-- Fecha de publicación, autor, categoría, imagen y enlace a la fuente original.
-- Chat basado únicamente en las noticias recuperadas desde ChromaDB.
-- CRUD de noticias, filtros, buscador, destacados y estadísticas.
+- `backend/`: API FastAPI, persistencia SQLite, autenticación, migraciones Alembic, media y outbox analítica.
+- `collector/`: captura HTTP/Playwright restringida por configuración, robots, deduplicación, extracción y sincronización.
+- `shared/`: contratos, validación, URLs y utilidades comunes.
+- `analytics/`: preparación local de lotes NDJSON y manifiestos para BigQuery; no sube datos.
+- `src/`: frontend Astro/React, portal público y panel administrativo.
+- `scripts/windows/`: instalación y registro del recolector como tarea programada.
+- `tests/`: pruebas unitarias e integración con fixtures y mocks.
+- `evaluation/`: corpus y evaluación local.
 
-## Stack
+## Requisitos locales
 
-| Capa | Tecnología |
-|---|---|
-| Frontend | Astro 6, React 19, shadcn/ui, Tailwind CSS 4 |
-| Backend | FastAPI, SQLAlchemy, SQLite |
-| Scraping | ScrapeGraphAI API v2 |
-| LLM | OpenRouter + `minimax/minimax-m3:free` |
-| Retrieval | ChromaDB + embeddings locales |
+- Windows PowerShell.
+- Python 3.14.7 x64 verificado en esta ejecución (el plan original pedía Python 3.12).
+- Node.js/npm.
+- OpenRouter solo para ejecuciones reales del recolector; las pruebas no consumen esa cuota.
 
-Los embeddings se ejecutan localmente. OpenRouter se utiliza para resumir las noticias importadas y responder las consultas; Gemini ya no es necesario.
-
-## Configuración local
-
-### Requisitos
-
-- Node.js 22.12 o superior.
-- Python 3.10 o superior.
-- API key de ScrapeGraphAI.
-- API key de OpenRouter con acceso al modelo configurado.
-
-### Backend
+Crear o reutilizar el entorno Python:
 
 ```powershell
-cd backend
-python -m venv venv
-venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
+& 'C:\Users\radst\AppData\Local\Python\pythoncore-3.14-64\python.exe' -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
-Edita `backend/.env`:
-
-```env
-OPENROUTER_API_KEY=tu_api_key_de_openrouter
-OPENROUTER_MODEL=minimax/minimax-m3:free
-SGAI_API_KEY=tu_api_key_de_scrapegraphai
-```
-
-También se admite `API_SCRAPEGRAPHAI`, que es el nombre utilizado por la configuración inicial de este proyecto. No es necesario duplicar la key: basta con definir uno de los dos nombres.
-
-Inicia el backend:
+Instalar dependencias frontend:
 
 ```powershell
-python main.py
-```
-
-La API queda disponible en `http://localhost:8000` y su documentación en `http://localhost:8000/docs`.
-
-### Frontend
-
-Desde la raíz:
-
-```powershell
-Copy-Item .env.example .env
 npm install
+```
+
+## Validación local
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit tests/integration -q
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Migraciones sobre una base SQLite temporal:
+
+```powershell
+$env:DATABASE_URL = 'sqlite:///./uninews-local.db'
+.\.venv\Scripts\alembic.exe -c backend/alembic.ini upgrade head
+.\.venv\Scripts\alembic.exe -c backend/alembic.ini downgrade base
+```
+
+## Ejecución
+
+API:
+
+```powershell
+.\.venv\Scripts\uvicorn.exe backend.main:app --reload
+```
+
+Frontend:
+
+```powershell
 npm run dev
 ```
 
-El frontend queda disponible en `http://localhost:4321`.
-
-Para iniciar ambas capas a la vez, una vez creado `backend/venv`:
+Recolector en modo local:
 
 ```powershell
-npm run dev:all
+.\.venv\Scripts\python.exe -m collector --help
 ```
 
-## Importar noticias UPLA
+Configura secretos fuera del repositorio. No ejecutes el recolector real sin revisar las universidades, hosts y enlaces permitidos.
 
-1. Abre `http://localhost:4321/admin`.
-2. Selecciona **Importar UPLA**.
-3. Elige 3, 5 o 10 noticias.
-4. Inicia la importación.
+## Reglas de seguridad y alcance
 
-Primero se extrae el listado principal. Las URLs existentes se omiten antes de extraer el artículo, por lo que las ejecuciones repetidas no vuelven a consumir créditos por esas páginas. Cada noticia nueva requiere una extracción adicional y una llamada a MiniMax M3 para su resumen.
-
-## API
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/api/news/` | Lista y filtra noticias |
-| `GET` | `/api/news/stats` | Estadísticas generales |
-| `POST` | `/api/news/` | Crea e indexa una noticia |
-| `PUT` | `/api/news/{id}` | Actualiza y reindexa una noticia |
-| `DELETE` | `/api/news/{id}` | Elimina una noticia y su índice |
-| `POST` | `/api/scrape/upla` | Importa de 1 a 10 noticias UPLA |
-| `POST` | `/api/chat/` | Consulta el asistente RAG |
-| `GET` | `/api/chat/status` | Estado, documentos y modelo activo |
-
-Ejemplo de importación:
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri http://localhost:8000/api/scrape/upla `
-  -ContentType application/json `
-  -Body '{"limit":5}'
-```
-
-## Variables de entorno
-
-| Variable | Requerida | Descripción |
-|---|---:|---|
-| `OPENROUTER_API_KEY` | Sí | Key utilizada exclusivamente en el backend |
-| `OPENROUTER_MODEL` | Sí | Modelo de resumen y chat; por defecto `minimax/minimax-m3:free` |
-| `SGAI_API_KEY` | Sí* | Nombre oficial de la key de ScrapeGraphAI |
-| `API_SCRAPEGRAPHAI` | Sí* | Alias compatible con la configuración inicial |
-| `PUBLIC_API_URL` | Sí | URL pública del backend para Astro |
-| `OPENROUTER_SITE_URL` | No | Referente enviado a OpenRouter |
-| `OPENROUTER_APP_NAME` | No | Nombre de la aplicación enviado a OpenRouter |
-| `SGAI_TIMEOUT` | No | Timeout de ScrapeGraphAI en segundos, por defecto 120 |
-| `RAG_MAX_DISTANCE` | No | Umbral de distancia coseno, por defecto 0.95 |
-
-\* Define `SGAI_API_KEY` o `API_SCRAPEGRAPHAI`, no ambas.
-
-Las API keys nunca se envían al navegador. Los archivos `.env` están ignorados por Git; solo los ejemplos sin secretos se versionan.
-
-## Despliegue
-
-El frontend puede desplegarse en Vercel configurando `PUBLIC_API_URL`. El backend necesita un servicio persistente (por ejemplo, Railway o Render) porque SQLite y ChromaDB escriben en disco. Configura allí las variables de OpenRouter y ScrapeGraphAI.
+- No se usa ScrapeGraphAI.
+- No se publican noticias ficticias cuando falla una fuente o el LLM.
+- Las pruebas usan fixtures y mocks, sin universidades, OpenRouter ni Google Cloud productivos.
+- BigQuery, despliegue cloud y push quedan fuera de esta fase.

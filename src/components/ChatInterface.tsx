@@ -49,7 +49,7 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "¡Hola! Soy tu asistente de Inteligencia Artificial de UniNews. Puedo responder tus dudas sobre noticias universitarias basándome en los artículos indexados en nuestro sistema RAG. ¿En qué te puedo ayudar hoy?",
+      content: "¡Hola! Soy tu asistente de UniNews. Puedo responder preguntas sobre las noticias universitarias publicadas. ¿En qué te puedo ayudar hoy?",
       timestamp: new Date(),
     },
   ]);
@@ -144,7 +144,7 @@ export default function ChatInterface() {
     setMessages([
       {
         role: "assistant",
-        content: "Ahora puedes preguntarme sobre cualquiera de las noticias indexadas en UniNews.",
+        content: "Ahora puedes preguntarme sobre cualquiera de las noticias publicadas en UniNews.",
         timestamp: new Date(),
       },
     ]);
@@ -164,7 +164,7 @@ export default function ChatInterface() {
             <div>
               <h2 className="font-display text-lg font-normal">Asistente UniNews IA</h2>
               <p className="text-xs text-muted-foreground">
-                {scopedNews ? "Consulta enfocada en una noticia" : "MiniMax M3 vía OpenRouter + RAG"}
+                {scopedNews ? "Consulta enfocada en una noticia" : "Noticias publicadas + OpenRouter"}
               </p>
             </div>
           </div>
@@ -182,7 +182,7 @@ export default function ChatInterface() {
                   "size-1.5 rounded-full",
                   ragStatus.status === "ok" ? "bg-emerald-400" : "bg-destructive"
                 )} />
-                {ragStatus.status === "ok" ? `${ragStatus.count} noticias indexadas` : "Desconectado"}
+                {ragStatus.status === "ok" ? `${ragStatus.count} ${ragStatus.count === 1 ? "noticia disponible" : "noticias disponibles"}` : "Desconectado"}
               </span>
             )}
             <Button
@@ -339,7 +339,7 @@ export default function ChatInterface() {
           >
             <div className="relative flex-1">
               <Textarea
-                placeholder={scopedNews ? "Pregunta sobre esta noticia..." : "Pregunta sobre las noticias indexadas..."}
+                placeholder={scopedNews ? "Pregunta sobre esta noticia..." : "Pregunta sobre las noticias publicadas..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {

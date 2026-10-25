@@ -1,0 +1,1 @@
+{"type":"array","items":{"type":"object","required":["article_id","university_id","source_id","source_url","captured_at","html_sha256","document_hash","split","gold"]}}

@@ -1,0 +1,2 @@
+"""Recolector independiente de UniNews."""
+
