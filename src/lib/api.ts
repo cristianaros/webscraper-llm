@@ -1,13 +1,142 @@
 export const API_BASE = import.meta.env.PUBLIC_API_URL ?? "";
-export interface News { id:number; title:string; summary:string|null; content:string; category:string; university:string; university_id:number|null; author:string|null; image_url:string|null; image_status:"not_found"|"pending"|"ready"|"failed"; image_sha256:string|null; source_url:string|null; is_featured:boolean; published_at:string|null; published_on:string|null; date_precision:"day"|"instant"|null; publication_status:"draft"|"published"|"archived"; created_at:string; updated_at:string|null; }
-export interface NewsCreate { title:string; summary?:string; content:string; category:string; university:string; author?:string; image_url?:string; source_url?:string; is_featured:boolean; published_at?:string; }
-export interface StatsResponse { total_news:number; categories:Record<string,number>; universities:string[]; featured_count:number; }
-export interface ChatResponse { answer:string; sources:Array<{news_id:number;title:string;category:string;university:string;source_url?:string|null}>; }
-export type NewsParams = {skip?:number;limit?:number;university_id?:number;category?:string;search?:string;date_from?:string;date_to?:string;featured?:boolean};
-function endpoint(path:string) { return API_BASE ? `${API_BASE}${path}` : new URL(path, typeof window === "undefined" ? "http://localhost" : window.location.origin).toString(); }
-export async function fetchNews(params:NewsParams={},signal?:AbortSignal):Promise<News[]> { const url=new URL(endpoint("/api/news/")); for(const [key,value] of Object.entries(params)) if(value!==undefined&&value!=="") url.searchParams.set(key,String(value)); const response=await fetch(url,{signal}); if(!response.ok) throw new Error(`No se pudieron cargar las noticias (${response.status})`); return response.json() as Promise<News[]>; }
-export async function fetchNewsById(id:number,signal?:AbortSignal):Promise<News> { const response=await fetch(endpoint(`/api/news/${id}`),{signal}); if(!response.ok) throw new Error(`Noticia ${id} no encontrada`); return response.json() as Promise<News>; }
-export async function fetchStats(signal?:AbortSignal):Promise<StatsResponse> { const response=await fetch(endpoint("/api/news/stats"),{signal}); if(!response.ok) throw new Error("No se pudieron cargar las estadísticas"); return response.json() as Promise<StatsResponse>; }
-async function writeNews<T>(path:string,method:string,data?:unknown):Promise<T> { const response=await fetch(endpoint(path),{method,headers:{"Content-Type":"application/json"},body:data===undefined?undefined:JSON.stringify(data)}); if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.detail||`Error ${response.status}`)} return response.status===204?undefined as T:response.json() as Promise<T>; }
-export const createNews=(data:NewsCreate)=>writeNews<News>("/api/news/","POST",data); export const updateNews=(id:number,data:Partial<NewsCreate>)=>writeNews<News>(`/api/news/${id}`,"PUT",data); export const deleteNews=(id:number)=>writeNews<void>(`/api/news/${id}`,"DELETE"); export const sendChatMessage=(question:string,newsId?:number)=>writeNews<ChatResponse>("/api/chat/","POST",{question,news_id:newsId});
-export async function fetchRagStatus():Promise<{status:string;indexed_documents:number;model?:string}>{const response=await fetch(endpoint("/api/chat/status"));if(!response.ok)throw new Error("No se pudo consultar el estado del asistente");return response.json() as Promise<{status:string;indexed_documents:number;model?:string}>;}
+
+export interface News {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string;
+  category: string;
+  university: string;
+  university_id: number | null;
+  author: string | null;
+  image_url: string | null;
+  image_status: "not_found" | "pending" | "ready" | "failed";
+  image_sha256: string | null;
+  source_url: string | null;
+  is_featured: boolean;
+  published_at: string | null;
+  published_on: string | null;
+  date_precision: "day" | "instant" | null;
+  publication_status: "draft" | "published" | "archived";
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface NewsCreate {
+  title: string;
+  summary?: string;
+  content: string;
+  category: string;
+  university: string;
+  author?: string;
+  image_url?: string;
+  source_url?: string;
+  is_featured: boolean;
+  published_at?: string;
+}
+
+export interface StatsResponse {
+  total_news: number;
+  categories: Record<string, number>;
+  universities: string[];
+  featured_count: number;
+}
+
+export interface ChatResponse {
+  answer: string;
+  sources: Array<{
+    news_id: number;
+    title: string;
+    category: string;
+    university: string;
+    source_url?: string | null;
+  }>;
+}
+
+export type NewsParams = {
+  skip?: number;
+  limit?: number;
+  university_id?: number;
+  university?: string;
+  category?: string;
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+  featured?: boolean;
+};
+
+function endpoint(path: string) {
+  return API_BASE
+    ? `${API_BASE}${path}`
+    : new URL(path, typeof window === "undefined" ? "http://localhost" : window.location.origin).toString();
+}
+
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (trimmed.startsWith("/")) {
+    const base = API_BASE.replace(/\/$/, "");
+    return base ? `${base}${trimmed}` : trimmed;
+  }
+  return resolveExternalUrl(trimmed);
+}
+
+export function resolveExternalUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchNews(params: NewsParams = {}, signal?: AbortSignal): Promise<News[]> {
+  const url = new URL(endpoint("/api/news/"));
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+  }
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`No se pudieron cargar las noticias (${response.status})`);
+  return response.json() as Promise<News[]>;
+}
+
+export async function fetchNewsById(id: number, signal?: AbortSignal): Promise<News> {
+  const response = await fetch(endpoint(`/api/news/${id}`), { signal });
+  if (!response.ok) throw new Error(`Noticia ${id} no encontrada`);
+  return response.json() as Promise<News>;
+}
+
+export async function fetchStats(signal?: AbortSignal): Promise<StatsResponse> {
+  const response = await fetch(endpoint("/api/news/stats"), { signal });
+  if (!response.ok) throw new Error("No se pudieron cargar las estadísticas");
+  return response.json() as Promise<StatsResponse>;
+}
+
+async function writeNews<T>(path: string, method: string, data?: unknown): Promise<T> {
+  const response = await fetch(endpoint(path), {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    if ((response.status === 429 || response.status === 503) && typeof error.detail === "string") {
+      throw new Error(error.detail);
+    }
+    throw new Error(error.detail || `Error ${response.status}`);
+  }
+  return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
+}
+
+export const createNews = (data: NewsCreate) => writeNews<News>("/api/news/", "POST", data);
+export const updateNews = (id: number, data: Partial<NewsCreate>) => writeNews<News>(`/api/news/${id}`, "PUT", data);
+export const deleteNews = (id: number) => writeNews<void>(`/api/news/${id}`, "DELETE");
+export const sendChatMessage = (question: string, newsId?: number) =>
+  writeNews<ChatResponse>("/api/chat/", "POST", { question, news_id: newsId });
+
+export async function fetchRagStatus(): Promise<{ status: string; indexed_documents: number; model?: string }> {
+  const response = await fetch(endpoint("/api/chat/status"));
+  if (!response.ok) throw new Error("No se pudo consultar el estado del asistente");
+  return response.json() as Promise<{ status: string; indexed_documents: number; model?: string }>;
+}

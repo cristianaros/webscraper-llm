@@ -7,7 +7,7 @@
     "../astro.config.mjs",
     "../public",
   ],
-  "exclude": ["dist"],
+  "exclude": ["dist", "playwright.config.ts", "tests"],
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "react",

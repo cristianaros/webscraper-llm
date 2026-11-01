@@ -1,9 +1,109 @@
 "use client";
-import {useCallback,useEffect,useRef,useState} from "react";
-import {fetchNews,fetchStats,type News,type StatsResponse} from "@/lib/api";
-import {formatPublicationDate} from "@/lib/date";
-import {NewspaperIcon,RefreshIcon,SearchIcon} from "@/lib/icons";
-import {Button} from "@/components/ui/button"; import {Input} from "@/components/ui/input"; import {Skeleton} from "@/components/ui/skeleton"; import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from "@/components/ui/dialog"; import {ScrollArea} from "@/components/ui/scroll-area";
-const PAGE_SIZE=20;
-export default function NewsPage(){const[news,setNews]=useState<News[]>([]),[stats,setStats]=useState<StatsResponse|null>(null),[category,setCategory]=useState(""),[search,setSearch]=useState(""),[page,setPage]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[selected,setSelected]=useState<News|null>(null);const controller=useRef<AbortController|null>(null);const load=useCallback(async(silent=false)=>{controller.current?.abort();const current=new AbortController();controller.current=current;if(!silent)setLoading(true);try{const[items,nextStats]=await Promise.all([fetchNews({skip:page*PAGE_SIZE,limit:PAGE_SIZE+1,category:category||undefined,search:search||undefined},current.signal),fetchStats(current.signal)]);if(!current.signal.aborted){setNews(items);setStats(nextStats);setError(null)}}catch(cause){if(!current.signal.aborted)setError(cause instanceof Error?cause.message:"No se pudieron cargar las noticias.")}finally{if(!current.signal.aborted&&!silent)setLoading(false)}},[category,page,search]);useEffect(()=>{const timer=window.setTimeout(()=>void load(),search?300:0);return()=>{window.clearTimeout(timer);controller.current?.abort()}},[load,search]);useEffect(()=>{const refresh=()=>{if(document.visibilityState==="visible")void load(true)};const timer=window.setInterval(refresh,60000);document.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",refresh)}},[load]);const visible=news.slice(0,PAGE_SIZE);const update=(set:(value:string)=>void,value:string)=>{set(value);setPage(0)};return <main className="mx-auto max-w-screen-xl px-4 py-8 sm:px-6"><div className="mb-8 flex flex-col gap-4 border-b-2 border-foreground pb-6 md:flex-row md:items-end md:justify-between"><div><p className="mb-1 text-xs font-black uppercase tracking-widest text-[#D8232A]">Archivo universitario</p><h1 className="font-display text-3xl font-bold sm:text-4xl">Actualidad Universitaria</h1><p className="mt-2 text-sm text-muted-foreground">Noticias publicadas por las universidades configuradas.</p></div><Button onClick={()=>void load()} disabled={loading} className="rounded-none"><RefreshIcon className="mr-2 size-4"/>Actualizar noticias</Button></div><section aria-label="Filtros de noticias" className="mb-7 grid gap-3 border border-border bg-card p-4 md:grid-cols-3"><label className="relative"><span className="sr-only">Buscar noticias</span><SearchIcon className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground"/><Input value={search} onChange={event=>update(setSearch,event.target.value)} placeholder="Buscar en el archivo" className="pl-9"/></label><label><span className="sr-only">Categoría</span><select value={category} onChange={event=>update(setCategory,event.target.value)} className="h-9 w-full border border-input bg-background px-3 text-sm"><option value="">Todas las categorías</option>{Object.keys(stats?.categories??{}).map(value=><option key={value}>{value}</option>)}</select></label><p className="self-center text-sm text-muted-foreground">{stats?.total_news??0} publicaciones</p></section>{error?<div role="alert" className="mb-6 border border-destructive/40 bg-destructive/5 p-4 text-sm">{error} <Button variant="link" onClick={()=>void load()}>Reintentar</Button></div>:null}{loading?<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{Array.from({length:6},(_,index)=><Skeleton key={index} className="h-72 rounded-none"/>)}</div>:visible.length===0?<div className="border border-dashed border-border py-16 text-center"><NewspaperIcon className="mx-auto mb-3 size-10 text-muted-foreground"/><h2 className="font-display text-xl font-bold">No se encontraron noticias</h2><p className="mt-1 text-sm text-muted-foreground">No hay publicaciones para estos filtros.</p></div>:<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{visible.map(item=><article key={item.id} className="group flex flex-col border border-border bg-card p-4"><button type="button" onClick={()=>setSelected(item)} className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{item.image_url?<img src={item.image_url} alt="" className="mb-4 aspect-[16/10] w-full object-cover"/>:<div className="mb-4 flex aspect-[16/10] items-center justify-center bg-muted text-muted-foreground"><NewspaperIcon className="size-9"/><span className="sr-only">Sin imagen disponible</span></div>}<div className="mb-2 flex justify-between gap-2 text-[11px]"><span className="font-bold uppercase tracking-wider text-[#D8232A]">{item.category}</span><span className="text-muted-foreground">{formatPublicationDate(item)}</span></div><h2 className="font-display text-xl font-bold leading-snug group-hover:text-[#D8232A]">{item.title}</h2>{item.summary?<p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{item.summary}</p>:null}<p className="mt-4 border-t pt-2 text-xs text-muted-foreground">{item.university}</p></button></article>)}</div>}<nav aria-label="Paginación" className="mt-8 flex items-center justify-between"><Button variant="outline" className="rounded-none" disabled={page===0||loading} onClick={()=>setPage(value=>value-1)}>Anterior</Button><span className="text-sm text-muted-foreground">Página {page+1}</span><Button variant="outline" className="rounded-none" disabled={news.length<=PAGE_SIZE||loading} onClick={()=>setPage(value=>value+1)}>Siguiente</Button></nav><NewsDialog news={selected} onClose={()=>setSelected(null)}/></main>}
-function NewsDialog({news,onClose}:{news:News|null;onClose:()=>void}){const paragraphs=news?.content.split(/\n{2,}/).map(value=>value.trim()).filter(Boolean)??[];return <Dialog open={Boolean(news)} onOpenChange={open=>!open&&onClose()}><DialogContent className="max-h-[90vh] max-w-4xl rounded-none p-0"><ScrollArea className="max-h-[90vh]"><div className="p-6 sm:p-10">{news?<><p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">{news.university} · {formatPublicationDate(news)}</p><DialogHeader><DialogTitle className="font-display text-3xl font-bold sm:text-5xl">{news.title}</DialogTitle><DialogDescription className="sr-only">Lectura de artículo: {news.title}</DialogDescription></DialogHeader>{news.summary?<p className="my-6 border-b pb-5 font-serif text-lg italic">{news.summary}</p>:null}{news.image_url?<img src={news.image_url} alt="" className="my-6 max-h-[480px] w-full object-cover"/>:null}<div className="space-y-4 font-serif leading-7">{paragraphs.map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div>{news.source_url?<a className="mt-8 inline-block text-sm underline" href={news.source_url} target="_blank" rel="noreferrer">Ver fuente institucional</a>:null}</>:null}</div></ScrollArea></DialogContent></Dialog>}
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchNews, fetchStats, resolveExternalUrl, resolveMediaUrl, type News, type StatsResponse } from "@/lib/api";
+import { formatPublicationDate } from "@/lib/date";
+import { NewspaperIcon, RefreshIcon, SearchIcon } from "@/lib/icons";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import NewsContextAssistant from "@/components/NewsContextAssistant";
+
+const PAGE_SIZE = 20;
+
+export default function NewsPage() {
+  const [news, setNews] = useState<News[]>([]);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [category, setCategory] = useState("");
+  const [university, setUniversity] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<News | null>(null);
+  const controller = useRef<AbortController | null>(null);
+
+  const load = useCallback(async (silent = false) => {
+    controller.current?.abort();
+    const current = new AbortController();
+    controller.current = current;
+    if (!silent) setLoading(true);
+    try {
+      const [items, nextStats] = await Promise.all([
+        fetchNews({ skip: page * PAGE_SIZE, limit: PAGE_SIZE + 1, category: category || undefined, university: university || undefined, search: search || undefined }, current.signal),
+        fetchStats(current.signal),
+      ]);
+      if (!current.signal.aborted) {
+        setNews(items);
+        setStats(nextStats);
+        setError(null);
+      }
+    } catch (cause) {
+      if (!current.signal.aborted) setError(cause instanceof Error ? cause.message : "No se pudieron cargar las noticias.");
+    } finally {
+      if (!current.signal.aborted && !silent) setLoading(false);
+    }
+  }, [category, page, search, university]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), search ? 300 : 0);
+    return () => { window.clearTimeout(timer); controller.current?.abort(); };
+  }, [load, search]);
+
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void load(true); };
+    const timer = window.setInterval(refresh, 60000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, [load]);
+
+  const visible = news.slice(0, PAGE_SIZE);
+  const update = (set: (value: string) => void, value: string) => { set(value); setPage(0); };
+
+  return <main className="mx-auto max-w-screen-xl px-4 py-8 sm:px-6">
+    <div className="mb-8 flex flex-col gap-4 border-b-2 border-foreground pb-6 md:flex-row md:items-end md:justify-between">
+      <div><p className="mb-1 text-xs font-black uppercase tracking-widest text-[#D8232A]">Archivo universitario</p><h1 className="font-display text-3xl font-bold sm:text-4xl">Actualidad Universitaria</h1><p className="mt-2 text-sm text-muted-foreground">Noticias publicadas por las universidades configuradas.</p></div>
+      <Button onClick={() => void load()} disabled={loading} className="rounded-none"><RefreshIcon className="mr-2 size-4"/>Actualizar noticias</Button>
+    </div>
+    <section aria-label="Filtros de noticias" className="mb-7 grid gap-3 border border-border bg-card p-4 md:grid-cols-4">
+      <label className="relative"><span className="sr-only">Buscar noticias</span><SearchIcon className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground"/><Input value={search} onChange={event => update(setSearch, event.target.value)} placeholder="Buscar en el archivo" className="pl-9"/></label>
+      <label><span className="sr-only">Categoría</span><select aria-label="Categoría" value={category} onChange={event => update(setCategory, event.target.value)} className="h-9 w-full border border-input bg-background px-3 text-sm"><option value="">Todas las categorías</option>{Object.keys(stats?.categories ?? {}).map(value => <option key={value}>{value}</option>)}</select></label>
+      <label><span className="sr-only">Universidad</span><select aria-label="Universidad" value={university} onChange={event => update(setUniversity, event.target.value)} className="h-9 w-full border border-input bg-background px-3 text-sm"><option value="">Todas las universidades</option>{(stats?.universities ?? []).map(value => <option key={value}>{value}</option>)}</select></label>
+      <p className="self-center text-sm text-muted-foreground">{stats?.total_news ?? 0} publicaciones</p>
+    </section>
+    {error ? <div role="alert" className="mb-6 border border-destructive/40 bg-destructive/5 p-4 text-sm">{error} <Button variant="link" onClick={() => void load()}>Reintentar</Button></div> : null}
+    {loading ? <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-72 rounded-none"/>)}</div> : visible.length === 0 ? <div className="border border-dashed border-border py-16 text-center"><NewspaperIcon className="mx-auto mb-3 size-10 text-muted-foreground"/><h2 className="font-display text-xl font-bold">No se encontraron noticias</h2><p className="mt-1 text-sm text-muted-foreground">No hay publicaciones para estos filtros.</p></div> : <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {visible.map(item => {
+        const imgUrl = resolveMediaUrl(item.image_url);
+        return <article key={item.id} className="group flex flex-col border border-border bg-card p-4"><button type="button" onClick={() => setSelected(item)} className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <CardMedia key={imgUrl ?? "empty"} src={imgUrl} alt={item.title}/>
+          <div className="mb-2 flex justify-between gap-2 text-[11px]"><span className="font-bold uppercase tracking-wider text-[#D8232A]">{item.category}</span><span className="text-muted-foreground">{formatPublicationDate(item)}</span></div><h2 className="font-display text-xl font-bold leading-snug group-hover:text-[#D8232A]">{item.title}</h2>{item.summary ? <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{item.summary}</p> : null}<p className="mt-4 border-t pt-2 text-xs text-muted-foreground">{item.university}</p>
+        </button></article>;
+      })}
+    </div>}
+    <nav aria-label="Paginación" className="mt-8 flex items-center justify-between"><Button variant="outline" className="rounded-none" disabled={page === 0 || loading} onClick={() => setPage(value => value - 1)}>Anterior</Button><span className="text-sm text-muted-foreground">Página {page + 1}</span><Button variant="outline" className="rounded-none" disabled={news.length <= PAGE_SIZE || loading} onClick={() => setPage(value => value + 1)}>Siguiente</Button></nav>
+    <NewsDialog key={selected?.id ?? "closed"} news={selected} onClose={() => setSelected(null)}/>
+  </main>;
+}
+
+function CardMedia({ src, alt }: { src: string | null; alt: string }) {
+  const [broken, setBroken] = useState(false);
+  if (!src || broken) return <div className="mb-4 flex aspect-[16/10] items-center justify-center bg-muted text-muted-foreground"><NewspaperIcon className="size-9"/><span className="sr-only">Sin imagen disponible</span></div>;
+  return <img src={src} alt={alt} onError={() => setBroken(true)} className="mb-4 aspect-[16/10] w-full object-cover"/>;
+}
+
+function NewsDialog({ news, onClose }: { news: News | null; onClose: () => void }) {
+  const [imageBroken, setImageBroken] = useState(false);
+  const paragraphs = news?.content.split(/\n{2,}/).map(value => value.trim()).filter(Boolean) ?? [];
+  const imageUrl = resolveMediaUrl(news?.image_url);
+  const sourceUrl = resolveExternalUrl(news?.source_url);
+  return <Dialog open={Boolean(news)} onOpenChange={open => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-4xl rounded-none p-0"><ScrollArea className="max-h-[90vh]"><div className="p-6 sm:p-10">{news ? <>
+    <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">{news.university} · {formatPublicationDate(news)}</p><DialogHeader><DialogTitle className="font-display text-3xl font-bold sm:text-5xl">{news.title}</DialogTitle><DialogDescription className="sr-only">Lectura de artículo: {news.title}</DialogDescription></DialogHeader>
+    {news.summary ? <p className="my-6 border-b pb-5 font-serif text-lg italic">{news.summary}</p> : null}
+    {imageUrl && !imageBroken ? <img src={imageUrl} alt={news.title} onError={() => setImageBroken(true)} className="my-6 max-h-[480px] w-full object-cover"/> : null}
+    <div className="space-y-4 font-serif leading-7">{paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+    {sourceUrl ? <a className="mt-8 inline-block text-sm underline" href={sourceUrl} target="_blank" rel="noopener noreferrer">Ver fuente institucional</a> : null}
+    <NewsContextAssistant key={news.id} news={news}/>
+  </> : null}</div></ScrollArea></DialogContent></Dialog>;
+}

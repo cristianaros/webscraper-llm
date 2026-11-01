@@ -9,6 +9,8 @@ import {
   fetchRagStatus,
   type ChatResponse,
   type News,
+  resolveExternalUrl,
+  resolveMediaUrl,
 } from "@/lib/api";
 import {
   SparklesIcon, SendIcon, UserIcon, BotIcon, InfoIcon, NewspaperIcon, RefreshCwIcon,
@@ -32,11 +34,13 @@ const SUGGESTIONS = [
   "Dime qué actividades culturales se realizarán pronto",
 ];
 
-const SCOPED_SUGGESTIONS = [
-  "Dame un resumen breve de esta noticia",
-  "¿Cuáles son los datos y personas más importantes?",
-  "¿Qué impacto tiene esta noticia para la comunidad UPLA?",
-];
+function scopedSuggestions(university?: string) {
+  return [
+    "Dame un resumen breve de esta noticia",
+    "¿Cuáles son los datos y personas más importantes?",
+    `¿Qué impacto tiene esta noticia para ${university || "la comunidad universitaria"}?`,
+  ];
+}
 
 function requestedNewsId() {
   if (typeof window === "undefined") return undefined;
@@ -150,7 +154,7 @@ export default function ChatInterface() {
     ]);
   };
 
-  const suggestions = scopedNews ? SCOPED_SUGGESTIONS : SUGGESTIONS;
+  const suggestions = scopedNews ? scopedSuggestions(scopedNews.university) : SUGGESTIONS;
 
   return (
     <div className="mx-auto max-w-screen-md px-4 py-6">
@@ -201,7 +205,7 @@ export default function ChatInterface() {
           <div className="flex items-center gap-3 border-b border-border bg-primary/5 px-4 py-3 sm:px-6">
             {scopedNews.image_url ? (
               <img
-                src={scopedNews.image_url}
+                src={resolveMediaUrl(scopedNews.image_url) ?? undefined}
                 alt=""
                 className="size-11 flex-shrink-0 rounded-lg object-cover"
               />
@@ -262,11 +266,12 @@ export default function ChatInterface() {
                         Fuentes consultadas:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {msg.sources.map((src, idx) =>
-                          src.source_url ? (
+                        {msg.sources.map((src, idx) => {
+                          const sourceUrl = resolveExternalUrl(src.source_url);
+                          return sourceUrl ? (
                             <a
                               key={`${src.news_id}-${idx}`}
-                              href={src.source_url}
+                              href={sourceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="max-w-xs"
@@ -285,8 +290,8 @@ export default function ChatInterface() {
                             >
                               {src.title}
                             </Badge>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -365,3 +370,7 @@ export default function ChatInterface() {
     </div>
   );
 }
+
+
+
+

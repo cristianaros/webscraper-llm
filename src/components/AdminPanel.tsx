@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  fetchNews, fetchStats, createNews, updateNews, deleteNews,
+  fetchNews, fetchStats,
   type News, type NewsCreate, type StatsResponse,
 } from "@/lib/api";
+import { createAdminNews, deleteAdminNews, listUniversities, updateAdminNews } from "@/lib/admin-api";
 import {
   PlusIcon, EditIcon, TrashIcon, SearchIcon, RefreshIcon,
   LayoutDashboardIcon, ListIcon, NewspaperIcon, StarIcon,
@@ -32,8 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminGate } from "@/components/admin/AdminGate";
 import { CollectionAdmin } from "@/components/admin/CollectionAdmin";
 
-const CATEGORIES = ["Academia", "Becas", "Cultura", "Deportes", "Destacados", "Empleo", "En los medios", "Género", "Infraestructura", "Investigación", "Logros", "Opinión", "Tecnología", "General"];
-const UNIVERSITIES = ["Universidad de Playa Ancha", "Universidad Central", "Universidad Politécnica", "Universidad de las Artes", "Otra"];
+const CATEGORIES = ["Academia", "Admisión", "Becas", "Cultura", "Deportes", "Empleo", "Género", "Infraestructura", "Investigación", "Tecnología", "Vinculación", "Institucional", "Opinión", "General"];
 
 const DEFAULT_FORM: NewsCreate = {
   title: "",
@@ -73,15 +73,16 @@ function StatCard({ label, value, icon: Icon, accent = false }: {
 }
 
 export default function AdminPanel() {
-  return <AdminGate>{(token) => <><LegacyAdminPanel /><CollectionAdmin token={token} /></>}</AdminGate>;
+  return <AdminGate>{(token) => <><LegacyAdminPanel token={token} /><CollectionAdmin token={token} /></>}</AdminGate>;
 }
 
 // ─── News Form ────────────────────────────────────────────────
 
 function NewsForm({
-  initial, onSave, onCancel, loading: saving,
+  initial, onSave, onCancel, loading: saving, universities,
 }: {
   initial?: Partial<NewsCreate>;
+  universities: string[];
   onSave: (data: NewsCreate) => void;
   onCancel: () => void;
   loading?: boolean;
@@ -92,7 +93,7 @@ function NewsForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!form.title.trim()) { toast.error("El título es requerido."); return; }
     if (!form.content.trim()) { toast.error("El contenido es requerido."); return; }
@@ -140,7 +141,8 @@ function NewsForm({
             list="universities-list"
           />
           <datalist id="universities-list">
-            {UNIVERSITIES.map((u) => <option key={u} value={u} />)}
+            {universities.map((u) => <option key={u} value={u} />)}
+            <option value="Otra" />
           </datalist>
         </div>
       </div>
@@ -215,9 +217,10 @@ function NewsForm({
 
 // ─── Admin Panel ──────────────────────────────────────────────
 
-function LegacyAdminPanel() {
+function LegacyAdminPanel({ token }: { token: string }) {
   const [news, setNews] = useState<News[]>([]);
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [configuredUniversities, setConfiguredUniversities] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -241,6 +244,16 @@ function LegacyAdminPanel() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    listUniversities(token)
+      .then((items) => { if (active) setConfiguredUniversities(items.map((item) => item.name)); })
+      .catch(() => { if (active) setConfiguredUniversities([]); });
+    return () => { active = false; };
+  }, [token]);
+
+  const universities = [...new Set([...configuredUniversities, ...(stats?.universities ?? [])])];
+
   const filtered = search
     ? news.filter((n) => n.title.toLowerCase().includes(search.toLowerCase()) || n.university.toLowerCase().includes(search.toLowerCase()))
     : news;
@@ -249,10 +262,10 @@ function LegacyAdminPanel() {
     setSaving(true);
     try {
       if (editNews) {
-        await updateNews(editNews.id, data);
+        await updateAdminNews(editNews.id, data, token);
         toast.success("Noticia actualizada correctamente.");
       } else {
-        await createNews(data);
+        await createAdminNews(data, token);
         toast.success("Noticia creada y añadida al índice IA.");
       }
       setDialogOpen(false);
@@ -269,7 +282,7 @@ function LegacyAdminPanel() {
   async function handleDelete() {
     if (!deleteId) return;
     try {
-      await deleteNews(deleteId);
+      await deleteAdminNews(deleteId, token);
       toast.success("Noticia eliminada.");
       setDeleteId(null);
       load();
@@ -467,6 +480,7 @@ function LegacyAdminPanel() {
           <ScrollArea className="max-h-[70vh]">
             <div className="p-6">
               <NewsForm
+                universities={universities}
                 initial={editNews ? {
                   title: editNews.title,
                   summary: editNews.summary ?? "",

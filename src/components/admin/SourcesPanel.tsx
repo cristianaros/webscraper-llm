@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   createSource,
   createUniversity,
   listSources,
   listUniversities,
+  patchSource,
   requestRun,
   type SourceConfig,
   type University,
@@ -19,19 +20,19 @@ export function SourcesPanel({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const [rows, unis] = await Promise.all([
       listSources(token),
       listUniversities(token),
     ]);
     setSources(rows);
     setUniversities(unis);
-  };
+  }, [token]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
-  }, [token]);
+  }, [refresh]);
 
   return (
     <section>
@@ -85,8 +86,30 @@ export function SourcesPanel({ token }: { token: string }) {
                 <span className="mt-1 inline-block text-xs text-muted-foreground">
                   Revisión: {source.revision} · Intervalo: {source.interval_minutes} min
                 </span>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-muted px-2 py-1">{source.enabled ? "Activa" : "Inactiva"}</span>
+                  <span className="rounded-full bg-muted px-2 py-1">{source.auto_publish ? "Auto-publicación" : "Revisión editorial"}</span>
+                  <span className="rounded-full bg-muted px-2 py-1">{source.validated_revision === source.revision ? `Validada rev. ${source.revision}` : "Sin validar"}</span>
+                </div>
               </div>
               <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={busy || ( !source.enabled && source.validated_revision !== source.revision)} onClick={async () => {
+                  setBusy(true); setMsg("");
+                  try {
+                    await patchSource(source.id, { ...source, enabled: !source.enabled, expected_revision: source.revision }, token);
+                    await refresh();
+                    setMsg(source.enabled ? "Fuente pausada." : "Fuente activada.");
+                  } catch (err) { setMsg(err instanceof Error ? err.message : "No se pudo cambiar el estado"); }
+                  finally { setBusy(false); }
+                }}>{source.enabled ? "Pausar" : "Activar"}</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
+                  setBusy(true); setMsg("");
+                  try {
+                    await patchSource(source.id, { ...source, auto_publish: !source.auto_publish, expected_revision: source.revision }, token);
+                    await refresh();
+                  } catch (err) { setMsg(err instanceof Error ? err.message : "No se pudo cambiar la auto-publicación"); }
+                  finally { setBusy(false); }
+                }}>{source.auto_publish ? "Desactivar auto-publicación" : "Activar auto-publicación"}</Button>
                 <Button
                   size="sm"
                   variant="outline"
