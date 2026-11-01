@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
 from datetime import UTC, datetime, timedelta
 import socket
 import time
@@ -9,6 +10,7 @@ from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
+import httpcore
 
 from collector.config import CollectorSettings
 from shared.contracts import SourceConfig
@@ -33,31 +35,81 @@ class FetchError(RuntimeError):
         self.code, self.retry_at = code, retry_at
 
 
+class PublicDestinationError(RuntimeError):
+    """A connection target resolved to an unsafe or unavailable destination."""
+
+
+class PublicOnlyNetworkBackend(httpcore.SyncBackend):
+    """Resolve and pin only globally routable addresses at socket connect time."""
+
+    def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None, socket_options=None):
+        try:
+            entries = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            raise PublicDestinationError("dns_failed") from exc
+        try:
+            addresses = [entry[4][0] for entry in entries]
+            if not addresses or not all(ipaddress.ip_address(address).is_global for address in addresses):
+                raise PublicDestinationError("private_destination")
+        except ValueError as exc:
+            raise PublicDestinationError("private_destination") from exc
+        return super().connect_tcp(addresses[0], port, timeout=timeout, local_address=local_address, socket_options=socket_options)
+
+
+def _public_destination_error(exc: BaseException) -> PublicDestinationError | None:
+    seen: set[int] = set()
+    pending = [exc]
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, PublicDestinationError):
+            return current
+        pending.extend(item for item in (current.__cause__, current.__context__) if item is not None)
+    return None
+
+
 class HttpFetcher:
     def __init__(self, client: httpx.Client | None = None, *, allow_test_hosts: bool = False) -> None:
-        self.client = client or httpx.Client(timeout=httpx.Timeout(30, connect=10), trust_env=False)
+        if client is not None:
+            self.client = client
+        elif allow_test_hosts:
+            self.client = httpx.Client(timeout=httpx.Timeout(30, connect=10), trust_env=False)
+        else:
+            transport = httpx.HTTPTransport()
+            transport._pool._network_backend = PublicOnlyNetworkBackend()
+            self.client = httpx.Client(transport=transport, timeout=httpx.Timeout(30, connect=10), trust_env=False)
         self.allow_test_hosts = allow_test_hosts
         self._robots: dict[str, tuple[datetime, RobotFileParser, float]] = {}
         self._last_request: dict[str, float] = {}
 
     def _validate(self, url: str, source: SourceConfig, *, image: bool = False) -> str:
+        from collector.images import is_allowed_image_host
         value = normalize_url(url)
         host = httpx.URL(value).host
-        if self.allow_test_hosts and (host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".example") or host.endswith(".test") or host.endswith(".local")):
-            allowed = {item.lower().rstrip('.') for item in (source.allowed_hosts + source.allowed_image_hosts if image else source.allowed_hosts)}
-            if host.lower().rstrip('.') not in allowed:
-                raise FetchError("destination_host_not_allowed")
+        allowed = is_allowed_image_host(host, source) if image else host.lower().rstrip('.') in {item.lower().rstrip('.') for item in source.allowed_hosts}
+        if not allowed:
+            raise FetchError("destination_host_not_allowed")
+        if self.allow_test_hosts and host.lower().rstrip('.') in {item.lower().rstrip('.') for item in (source.allowed_hosts + source.allowed_image_hosts)} and (host.endswith(".example") or host.endswith(".test") or host.endswith(".local")):
             return value
+        try:
+            import ipaddress
+            literal = ipaddress.ip_address(host)
+        except ValueError:
+            literal = None
+        if literal is not None:
+            if not literal.is_global:
+                raise FetchError("private_destination")
+            raise FetchError("literal_ip_not_allowed")
         try:
             addresses = [entry[4][0] for entry in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)]
         except socket.gaierror as exc:
             raise FetchError("dns_failed") from exc
         try:
-            if image and host in {item.lower().rstrip('.') for item in source.allowed_image_hosts}:
-                import ipaddress
-                if not addresses or not all(ipaddress.ip_address(item).is_global for item in addresses):
-                    raise ValueError('private_destination')
-            else:
+            if not addresses or not all(ipaddress.ip_address(item).is_global for item in addresses):
+                raise ValueError('private_destination')
+            if not image:
                 validate_destination(value, source, addresses)
         except ValueError as exc:
             raise FetchError(str(exc)) from exc
@@ -77,6 +129,9 @@ class HttpFetcher:
         except httpx.TimeoutException as exc:
             raise FetchError("robots_unavailable", datetime.now(UTC) + timedelta(minutes=5)) from exc
         except httpx.HTTPError as exc:
+            public_error = _public_destination_error(exc)
+            if public_error:
+                raise FetchError(str(public_error)) from exc
             raise FetchError("robots_unavailable", datetime.now(UTC) + timedelta(minutes=5)) from exc
         if response.status_code in {401, 403}:
             raise FetchError("robots_denied")
@@ -104,7 +159,7 @@ class HttpFetcher:
 
     def fetch(self, url: str, source: SourceConfig, *, etag: str | None = None, modified: str | None = None, binary: bool = False) -> FetchResult:
         current = self._validate(url, source, image=binary)
-        headers = {"User-Agent": "UniNewsResearchBot/1.0", "Accept": "text/html,application/xhtml+xml,application/xml,text/xml"}
+        headers = {"User-Agent": "UniNewsResearchBot/1.0", "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" if binary else "text/html,application/xhtml+xml,application/xml,text/xml"}
         if etag: headers["If-None-Match"] = etag
         if modified: headers["If-Modified-Since"] = modified
         for _ in range(6):
@@ -114,6 +169,9 @@ class HttpFetcher:
             except httpx.TimeoutException as exc:
                 raise FetchError("timeout") from exc
             except httpx.HTTPError as exc:
+                public_error = _public_destination_error(exc)
+                if public_error:
+                    raise FetchError(str(public_error)) from exc
                 raise FetchError("network_error") from exc
             if response.is_redirect:
                 target = response.headers.get("location")
@@ -122,7 +180,7 @@ class HttpFetcher:
                 continue
             self._last_request[urlsplit(current).netloc.lower()] = time.monotonic()
             raw = response.content
-            if len(raw) > 2 * 1024 * 1024: raise FetchError("response_too_large")
+            if len(raw) > (5 if binary else 2) * 1024 * 1024: raise FetchError("response_too_large")
             content_type = response.headers.get("content-type", "").lower()
             if not binary and response.status_code not in {304} and response.status_code < 400 and not any(x in content_type for x in ("html", "xml", "text/")):
                 raise FetchError("unsupported_content_type")

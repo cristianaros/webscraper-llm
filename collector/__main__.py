@@ -1,6 +1,7 @@
 """Independent collector command line; no backend imports or cwd assumptions."""
 from __future__ import annotations
 import argparse, json
+import httpx
 from datetime import UTC, datetime
 from uuid import UUID
 from pathlib import Path
@@ -12,7 +13,7 @@ from shared.backup import backup_sqlite
 
 def main(argv=None)->int:
     parser=argparse.ArgumentParser(prog='python -m collector'); parser.add_argument('--env',required=True,type=Path)
-    sub=parser.add_subparsers(dest='command',required=True); sub.add_parser('run-once'); sub.add_parser('status'); sub.add_parser('doctor')
+    sub=parser.add_subparsers(dest='command',required=True); sub.add_parser('run-once'); sub.add_parser('status'); doctor_parser=sub.add_parser('doctor'); doctor_parser.add_argument('--check-api',action='store_true')
     retry_parser=sub.add_parser('retry',help='requeue one local work item'); retry_parser.add_argument('--item',required=True,type=UUID)
     recover_parser=sub.add_parser('reprocess-model-failures',help='archive failed-model deliveries and retry saved documents')
     recover_parser.add_argument('--backup',required=True,type=Path,help='new, verified SQLite backup path')
@@ -41,7 +42,21 @@ def main(argv=None)->int:
             print(json.dumps({'data_dir':str(settings.data_dir),'pending':sum(len(store.pending(s,__import__('datetime').datetime.now(__import__('datetime').UTC),10000)) for s in ('download','llm','delivery'))}))
         return 0
     if args.command=='doctor':
-        try: settings.require_secrets(); print('doctor: configuration valid'); return 0
-        except ValueError as exc: print(f'doctor: {exc}'); return 2
+        try:
+            settings.require_secrets()
+            settings.data_dir.mkdir(parents=True, exist_ok=True)
+            probe=settings.data_dir/'.doctor-write-test'
+            with probe.open('w', encoding='utf-8') as handle:
+                handle.write('ok')
+            probe.unlink()
+            with CollectorStore(settings.data_dir/'collector.db') as store:
+                store.db.execute('SELECT 1').fetchone()
+            if args.check_api:
+                response=httpx.get(f"{str(settings.api_url).rstrip('/')}/health",timeout=10.0,trust_env=False)
+                if response.status_code != 200:
+                    print(f'doctor: api_health_failed ({response.status_code})'); return 2
+            print('doctor: configuration valid'); return 0
+        except (ValueError,OSError,httpx.HTTPError) as exc:
+            print(f'doctor: {exc}'); return 2
     summary=run_once(settings); print(summary.model_dump_json()); return summary.exit_code
 if __name__=='__main__': raise SystemExit(main())

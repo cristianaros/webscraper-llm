@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 import time
 import httpx
+import shutil
 import portalocker
 from collector.browser import BrowserFetcher
 from collector.discovery import discover
@@ -13,7 +14,7 @@ from collector.images import ImageFetcher, find_image_candidates
 from collector.openrouter import LLMDeferred, LLMRejected, MiniMaxExtractor
 from collector.store import CollectorStore
 from collector.sync import SyncClient
-from shared.contracts import Delivery, FREE_MODEL, RunReport, RunSummary
+from shared.contracts import CollectorHeartbeat, Delivery, FREE_MODEL, RunReport, RunSummary
 from shared.validation import materialize, validate_article
 
 _COUNT_KEYS=('discovered','downloaded','llm_processed','delivered','published','unchanged','pending','failed')
@@ -69,40 +70,50 @@ def run_once(settings,*,clock=lambda:datetime.now(UTC),monotonic=None,http_trans
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     try:
       with portalocker.Lock(settings.data_dir/'collector.lock',timeout=0):
-       with CollectorStore(settings.data_dir/'collector.db') as store, httpx.Client(transport=http_transport,trust_env=False,timeout=httpx.Timeout(30,connect=10)) as client:
+       with CollectorStore(settings.data_dir/'collector.db') as store, httpx.Client(transport=http_transport or httpx.HTTPTransport(),trust_env=False,timeout=httpx.Timeout(30,connect=10)) as client:
         sync=SyncClient(settings,client); _deliver(store,sync,clock,deadline,monotonic,counts)
         try: sources=sync.sources(); store.cache_sources(sources,started)
         except httpx.HTTPError: sources=store.valid_sources(started,settings.source_cache_ttl_hours)
         try: claims={claim.source.id:claim for claim in sync.claim_runs()}
         except httpx.HTTPError: claims={}
-        fetcher=HttpFetcher(client,allow_test_hosts=settings.allow_test_hosts); browser=BrowserFetcher(fetcher); extractor=MiniMaxExtractor(settings,client)
-        for source in sources:
-            if monotonic()>=deadline:break
-            claim=claims.get(source.id)
-            if (source.enabled or claim is not None) and store.source_due(source,clock(),force=claim is not None):
-                try:
-                    batch=discover(source,browser if source.render_mode=='browser' else fetcher,store.source_cursor(source.id),store.known_urls(source.id))
-                    for url in batch.urls: store.enqueue_url(source,url,claim.run_id if claim else uuid4())
-                    store.save_discovery(source,cursor=batch.next_cursor,now=clock()); counts['discovered']+=len(batch.urls)
-                except FetchError: pass
-            _fetch_due(store,source,fetcher,browser,clock,deadline,monotonic,counts)
-            if claim and claim.trigger=='preview':
-                docs=[x.document for x in store.pending('llm',clock(),3) if x.source_id==source.id][:3]
-                preview={'source_revision':source.revision,'documents':[x.model_dump(mode='json') for x in docs],'selections':[None]*len(docs),'issues':[validate_article(baseline_extract(x,source),x,None,source,clock()) for x in docs]}
-                try: sync.client.put(f'{settings.api_url}/api/collector/runs/{claim.run_id}/preview',headers=sync.headers,json=preview).raise_for_status()
-                except httpx.HTTPError: pass
-            elif not (claim and claim.trigger=='preview'):
-                for item in store.pending('llm',clock(),source.max_articles,source_id=source.id):
-                    if monotonic()<deadline: process_item(store,item,source,extractor,settings,clock()); counts['llm_processed']+=1
-            if claim:
-                report=RunReport(run_id=claim.run_id,source_id=source.id,trigger=claim.trigger,status='partial' if monotonic()>=deadline else 'success',started_at=started,finished_at=clock(),counts=counts)
-                try: sync.report_claimed(report,claim)
-                except httpx.HTTPError: store.save_run(report)
-        _deliver(store,sync,clock,deadline,monotonic,counts)
-        for report in store.pending_reports():
-            try: sync.report(report); store.acknowledge_report(report.run_id)
-            except httpx.HTTPError: break
-        pending=sum(len(store.pending(stage,clock(),10000)) for stage in ('download','llm','delivery'))
-        return RunSummary(started_at=started,finished_at=clock(),counts=counts,pending_count=pending,exit_code=0)
+        fetcher=HttpFetcher(client if http_transport is not None else None,allow_test_hosts=settings.allow_test_hosts)
+        try:
+            browser=BrowserFetcher(fetcher); extractor=MiniMaxExtractor(settings,client)
+            for source in sources:
+                if monotonic()>=deadline:break
+                claim=claims.get(source.id)
+                if (source.enabled or claim is not None) and store.source_due(source,clock(),force=claim is not None):
+                    try:
+                        batch=discover(source,browser if source.render_mode=='browser' else fetcher,store.source_cursor(source.id),store.known_urls(source.id))
+                        for url in batch.urls: store.enqueue_url(source,url,claim.run_id if claim else uuid4())
+                        store.save_discovery(source,cursor=batch.next_cursor,now=clock()); counts['discovered']+=len(batch.urls)
+                    except FetchError: pass
+                _fetch_due(store,source,fetcher,browser,clock,deadline,monotonic,counts)
+                if claim and claim.trigger=='preview':
+                    docs=[x.document for x in store.pending('llm',clock(),3) if x.source_id==source.id][:3]
+                    preview={'source_revision':source.revision,'documents':[x.model_dump(mode='json') for x in docs],'selections':[None]*len(docs),'issues':[validate_article(baseline_extract(x,source),x,None,source,clock()) for x in docs]}
+                    try: sync.client.put(f'{settings.api_url}/api/collector/runs/{claim.run_id}/preview',headers=sync.headers,json=preview).raise_for_status()
+                    except httpx.HTTPError: pass
+                elif not (claim and claim.trigger=='preview'):
+                    for item in store.pending('llm',clock(),source.max_articles,source_id=source.id):
+                        if monotonic()<deadline: process_item(store,item,source,extractor,settings,clock()); counts['llm_processed']+=1
+                if claim:
+                    report=RunReport(run_id=claim.run_id,source_id=source.id,trigger=claim.trigger,status='partial' if monotonic()>=deadline else 'success',started_at=started,finished_at=clock(),counts=counts)
+                    try: sync.report_claimed(report,claim)
+                    except httpx.HTTPError: store.save_run(report)
+            _deliver(store,sync,clock,deadline,monotonic,counts)
+            for report in store.pending_reports():
+                try: sync.report(report); store.acknowledge_report(report.run_id)
+                except httpx.HTTPError: break
+            pending=sum(len(store.pending(stage,clock(),10000)) for stage in ('download','llm','delivery'))
+            oldest_row=store.db.execute("SELECT MIN(COALESCE(next_attempt_at, '')) FROM work_items WHERE state NOT IN ('synced','blocked')").fetchone()
+            oldest_pending=datetime.fromisoformat(oldest_row[0]) if oldest_row and oldest_row[0] else None
+            heartbeat=CollectorHeartbeat(collector_id=settings.collector_id,queue_size=pending,oldest_pending_at=oldest_pending,last_sources_sync_at=started,llm_status="ok",disk_free_bytes=shutil.disk_usage(settings.data_dir).free,version="2.0.0")
+            try: sync.heartbeat(heartbeat.model_dump(mode='json'))
+            except httpx.HTTPError: pass
+            return RunSummary(started_at=started,finished_at=clock(),counts=counts,pending_count=pending,exit_code=0)
+        finally:
+            if fetcher.client is not client:
+                fetcher.client.close()
     except portalocker.exceptions.LockException:
       return RunSummary(started_at=started,finished_at=clock(),counts=counts,pending_count=0,exit_code=0)
