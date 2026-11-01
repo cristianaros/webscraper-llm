@@ -1,15 +1,14 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config import BackendSettings
+from config import BackendSettings, load_backend_settings
 from database import make_engine, make_session_factory
 from rag.news_assistant import NewsAssistant
 from rag.openrouter import OpenRouterClient
 from rag.chat_guard import ChatGuard
 from routers import news, sources, admin, collector, media, scraper, chat
 def create_app(settings: BackendSettings | None = None):
-    settings=settings or BackendSettings(_env_file=str(Path(__file__).resolve().parent / ".env")); engine=make_engine(settings.database_url)
+    settings=settings or load_backend_settings(); engine=make_engine(settings.database_url)
     @asynccontextmanager
     async def lifespan(app): yield
     app=FastAPI(title="UniNews API",version="2.0.0",lifespan=lifespan); app.state.settings=settings; app.state.engine=engine; app.state.session_factory=make_session_factory(engine)

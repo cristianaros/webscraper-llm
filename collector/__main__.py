@@ -6,20 +6,21 @@ from datetime import UTC, datetime
 from uuid import UUID
 from pathlib import Path
 import portalocker
-from collector.config import load_settings
+from collector.config import DEFAULT_ENV_FILE, LEGACY_COLLECTOR_ENV_FILE, load_settings
 from collector.pipeline import run_once
 from collector.store import CollectorStore
 from shared.backup import backup_sqlite
 
 def main(argv=None)->int:
-    parser=argparse.ArgumentParser(prog='python -m collector'); parser.add_argument('--env',required=True,type=Path)
+    parser=argparse.ArgumentParser(prog='python -m collector'); parser.add_argument('--env',required=False,default=None,type=Path)
     sub=parser.add_subparsers(dest='command',required=True); sub.add_parser('run-once'); sub.add_parser('status'); doctor_parser=sub.add_parser('doctor'); doctor_parser.add_argument('--check-api',action='store_true')
     retry_parser=sub.add_parser('retry',help='requeue one local work item'); retry_parser.add_argument('--item',required=True,type=UUID)
     recover_parser=sub.add_parser('reprocess-model-failures',help='archive failed-model deliveries and retry saved documents')
     recover_parser.add_argument('--backup',required=True,type=Path,help='new, verified SQLite backup path')
     backup_parser=sub.add_parser('backup',help='create a verified SQLite backup'); backup_parser.add_argument('--output',required=True,type=Path)
     args=parser.parse_args(argv)
-    try: settings=load_settings(args.env)
+    env_path=args.env if args.env is not None else (DEFAULT_ENV_FILE if DEFAULT_ENV_FILE.is_file() or not LEGACY_COLLECTOR_ENV_FILE.is_file() else LEGACY_COLLECTOR_ENV_FILE)
+    try: settings=load_settings(env_path)
     except Exception as exc: print(f'configuration_error: {exc}'); return 2
     if args.command=='backup':
         try: backup_sqlite(settings.data_dir/'collector.db',args.output); print(json.dumps({'backup':str(args.output.resolve()),'verified':True})); return 0

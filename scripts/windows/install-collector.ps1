@@ -12,5 +12,7 @@ if (-not (Test-Path -LiteralPath $python)) {
 }
 & $python -m pip install -r (Join-Path $root 'collector\requirements.txt'); if($LASTEXITCODE -ne 0){throw 'dependency installation failed'}
 New-Item -ItemType Directory -Force -Path (Join-Path $root 'data\collector') | Out-Null
-$envFile=Join-Path $root 'collector\.env'; if(-not(Test-Path -LiteralPath $envFile)){Copy-Item (Join-Path $root 'collector\.env.example') $envFile}
+$envFile=Join-Path $root '.env'
+$exampleFile=Join-Path $root '.env.example'
+if(-not(Test-Path -LiteralPath $envFile) -and (Test-Path -LiteralPath $exampleFile)){Copy-Item $exampleFile $envFile}
 if($InstallBrowser){& $python -m playwright install chromium; if($LASTEXITCODE -ne 0){throw 'Chromium installation failed'}}

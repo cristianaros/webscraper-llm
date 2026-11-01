@@ -43,7 +43,7 @@ No reutilizar una copia destino ya existente ni apuntar a la base original para 
 1. Publicar el código revisado mediante el proceso de release autorizado y confirmar que el release corresponde a los archivos aceptados. Este runbook no implica que ese release ya haya ocurrido.
 2. Configurar PostgreSQL y el servicio API de Railway: `APP_ENV=production`, `DATABASE_URL`, `ADMIN_TOKEN`, `COLLECTOR_TOKEN`, `COLLECTOR_ID`, `ALLOWED_ORIGINS`, `RAG_ENABLED=true`, `OPENROUTER_API_KEY` y `OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free`. Usar referencias/secretos del servicio; no copiar valores sensibles a repositorio, frontend o logs. Aplicar Alembic y seed. Si se trasladan los datos locales, seguir el procedimiento de copia anterior antes de aceptar tráfico.
 3. Configurar `PUBLIC_API_URL=https://<railway-domain>` en Vercel, publicar el frontend y verificar noticias, imágenes, chat, login/admin y CORS. No agregar secretos backend a variables `PUBLIC_*`.
-4. En Windows, preparar `collector/.env` local fuera del control de versiones; ejecutar `python -m collector --env collector/.env doctor --check-api` y `python -m collector --env collector/.env run-once`; revisar noticia, imagen, heartbeat y cola. Registrar Task Scheduler con `scripts/windows/register-collector-task.ps1` solo después de cerrar los gates de seguridad y migración.
+4. En Windows, usar el archivo único `.env` en la raíz del proyecto fuera del control de versiones; ejecutar `python -m collector doctor --check-api` (o `python -m collector --env .env doctor --check-api`) y `python -m collector run-once`; revisar noticia, imagen, heartbeat y cola. Registrar Task Scheduler con `scripts/windows/register-collector-task.ps1` solo después de cerrar los gates de seguridad y migración.
 
 ## Railway: servicio API y PostgreSQL
 
@@ -61,9 +61,9 @@ No reutilizar una copia destino ya existente ni apuntar a la base original para 
 
 ## Windows: recolector independiente
 
-1. Instalar Python compatible con `collector/requirements.txt`, preparar el entorno y copiar `collector/.env.example` a `collector/.env`.
+1. Instalar Python compatible con `collector/requirements.txt`, preparar el entorno y usar el archivo único `.env` en la raíz del proyecto (o copiar `.env.example` a `.env` en una máquina nueva).
 2. Establecer `APP_ENV=production`, `COLLECTOR_API_URL=https://<dominio-railway>`, `COLLECTOR_ID`, `COLLECTOR_TOKEN`, una ruta persistente `COLLECTOR_DATA_DIR` y la clave OpenRouter. Mantener el modelo autorizado exacto.
-3. Desde la raíz del checkout, ejecutar `python -m collector --env collector/.env doctor --check-api`; resolver errores. Ejecutar `run-once`, revisar resultado, heartbeat, cola/reintentos y publicación.
+3. Desde la raíz del checkout, ejecutar `python -m collector doctor --check-api`; resolver errores. Ejecutar `python -m collector run-once`, revisar resultado, heartbeat, cola/reintentos y publicación.
 4. Antes de programar, asegurar que las fuentes en modo navegador están bloqueadas o que la protección preconexión ha sido aceptada. Luego revisar rutas/usuario de `scripts/windows/register-collector-task.ps1` y `scripts/windows/run-collector.ps1`, registrar la tarea y comprobar su historial tras una ejecución programada.
 
 ## Secuencia de cutover y rollback
@@ -81,5 +81,5 @@ El despliegue requiere acceso a cuentas externas y una decisión sobre ventana/r
 - `docs/operations/collector-windows.md`
 - `docs/operations/server.md`
 - `docs/operations/recovery.md`
-- `backend/.env.example` y `collector/.env.example` (plantillas sin secretos)
+- `.env.example` en la raíz (plantilla única sin secretos para `.env`)
 - `docs/acceptance/production.md` (registro de evidencia del cutover)

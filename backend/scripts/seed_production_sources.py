@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-
-from config import BackendSettings
+from config import load_backend_settings
 from database import make_engine, make_session_factory
 from models import Source, SourceVersion, University
 from scripts.datoslab_catalog import DATOSLAB_PROFILES, VERIFIED_SLUGS, build_source_input
@@ -79,9 +77,8 @@ def seed_production_sources(db) -> dict[str, int]:
 
 
 def main() -> None:
-    env_file = Path(__file__).resolve().parents[1] / ".env"
-    # Environment values take precedence; use backend/.env only when it exists.
-    settings = BackendSettings(_env_file=str(env_file) if env_file.is_file() else None)
+    # Environment values take precedence; loads root .env locally when present.
+    settings = load_backend_settings()
     engine = make_engine(os.environ.get("DATABASE_URL", settings.database_url))
     try:
         with make_session_factory(engine)() as db:

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from config import BackendSettings
+from config import default_env_path, load_backend_settings
 from database import make_engine, make_session_factory
 from models import Source, University
 from scripts.datoslab_catalog import DATOSLAB_PROFILES, build_source_input
@@ -54,10 +54,10 @@ def register_catalog(db, *, update_inactive: bool = False) -> dict[str, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", type=Path, default=Path(__file__).resolve().parents[1] / ".env")
+    parser.add_argument("--env", type=Path, default=default_env_path())
     parser.add_argument("--update-inactive", action="store_true", help="update previously registered inactive profiles")
     args = parser.parse_args()
-    settings = BackendSettings(_env_file=str(args.env.resolve()))
+    settings = load_backend_settings(args.env)
     engine = make_engine(settings.database_url)
     with make_session_factory(engine)() as db:
         print(json.dumps(register_catalog(db, update_inactive=args.update_inactive), ensure_ascii=False))

@@ -8,7 +8,10 @@ if (-not (Test-Path -LiteralPath $taskPython -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $taskPython -PathType Leaf)) {
     throw 'No se encontró Python en .venv-collector ni .venv. Ejecuta scripts\windows\install-collector.ps1.'
 }
-$taskEnv = Join-Path $taskRoot 'collector\.env'
+$taskEnv = Join-Path $taskRoot '.env'
+if (-not (Test-Path -LiteralPath $taskEnv -PathType Leaf)) {
+    $taskEnv = Join-Path $taskRoot 'collector\.env'
+}
 Set-Location -LiteralPath $taskRoot
 & $taskPython -m collector --env $taskEnv run-once
 exit $LASTEXITCODE

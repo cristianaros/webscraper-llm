@@ -12,7 +12,7 @@ import httpx
 from collector.discovery import discover
 from collector.documents import build_document
 from collector.http import FetchError, HttpFetcher
-from config import BackendSettings
+from config import default_env_path, load_backend_settings
 from database import make_engine, make_session_factory
 from models import Source
 from scripts.datoslab_catalog import DATOSLAB_PROFILES
@@ -75,7 +75,7 @@ def audit_source(config, fetcher: HttpFetcher) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", type=Path, default=Path(__file__).resolve().parents[1] / ".env")
+    parser.add_argument("--env", type=Path, default=default_env_path())
     parser.add_argument("--slug", action="append", help="limit the audit to one slug; repeat as needed")
     parser.add_argument("--output", type=Path, help="optional new JSONL report file")
     args = parser.parse_args()
@@ -85,7 +85,7 @@ def main() -> None:
         parser.error(f"unknown slugs: {sorted(requested - allowed_slugs)}")
     if args.output and args.output.exists():
         parser.error("output already exists")
-    settings = BackendSettings(_env_file=str(args.env.resolve()))
+    settings = load_backend_settings(args.env)
     engine = make_engine(settings.database_url)
     with make_session_factory(engine)() as db, httpx.Client(
         trust_env=False, timeout=httpx.Timeout(30, connect=10)

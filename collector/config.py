@@ -13,10 +13,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.contracts import FREE_MODEL
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ENV_FILE = REPO_ROOT / ".env"
+LEGACY_COLLECTOR_ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
 class CollectorSettings(BaseSettings):
-    model_config = SettingsConfigDict(extra="forbid", populate_by_name=True)
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     data_dir: Path = Field(validation_alias="COLLECTOR_DATA_DIR")
     api_url: str = Field(validation_alias="COLLECTOR_API_URL")
@@ -61,6 +64,13 @@ class CollectorSettings(BaseSettings):
             raise ValueError("openrouter_api_key_missing")
 
 
-def load_settings(env_file: Path) -> CollectorSettings:
-    """Load one caller-selected dotenv file, never a cwd-discovered file."""
-    return CollectorSettings(_env_file=str(env_file.resolve()), _env_file_encoding="utf-8")
+def default_env_path() -> Path:
+    if DEFAULT_ENV_FILE.is_file() or not LEGACY_COLLECTOR_ENV_FILE.is_file():
+        return DEFAULT_ENV_FILE
+    return LEGACY_COLLECTOR_ENV_FILE
+
+
+def load_settings(env_file: Path | None = None) -> CollectorSettings:
+    """Load the unified root dotenv file (or an explicit caller-selected path)."""
+    target = env_file.resolve() if env_file is not None else default_env_path()
+    return CollectorSettings(_env_file=str(target), _env_file_encoding="utf-8")

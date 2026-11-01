@@ -26,9 +26,9 @@ class OpenRouterClient:
         self.app_name = os.getenv("OPENROUTER_APP_NAME", "UniNews UPLA")
 
         if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY no esta configurada en backend/.env")
+            raise ValueError("OPENROUTER_API_KEY no esta configurada en .env")
         if not self.model:
-            raise ValueError("OPENROUTER_MODEL no esta configurado en backend/.env")
+            raise ValueError("OPENROUTER_MODEL no esta configurado en .env")
 
     def _chat(
         self,
