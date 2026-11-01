@@ -184,4 +184,4 @@ def test_news_assistant_bounds_candidate_pool_to_recent_200(tmp_path):
         NewsAssistant(StubLLM()).prepare_context(db, "panorama general")
     candidates = [(sql, params) for sql, params in statements if "from news" in sql and "order by" in sql and "limit" in sql]
     assert any(200 in params for _, params in candidates)
-    assert all(200 in params or 30 in params for _, params in candidates)
+    assert all(200 in params or 15 in params for _, params in candidates)

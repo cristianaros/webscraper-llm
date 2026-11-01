@@ -55,7 +55,7 @@ class NewsAssistant:
         return db.query(News).filter(News.publication_status == "published").count()
 
     def prepare_context(self, db, question: str, news_id: int | None = None) -> tuple[str | None, list[dict], str | None]:
-        recent = db.query(News).filter(News.publication_status == "published").order_by(News.published_at.desc(), News.id.desc()).limit(30).all()
+        recent = db.query(News).filter(News.publication_status == "published").order_by(News.published_at.desc(), News.id.desc()).limit(15).all()
         if not recent and news_id is None:
             return None, [], _NO_MATCH
         catalog = "[CATÁLOGO RECIENTE DEL PORTAL]\n" + "\n".join(_catalog_line(n) for n in recent)
@@ -72,10 +72,10 @@ class NewsAssistant:
             )
             related = [row[2] for row in related if row[0] > 0][:3]
             chunks = [
-                "[NOTICIA EN FOCO]\n" + _catalog_line(selected) + "\n" + (selected.content or "")[:8000],
+                "[NOTICIA EN FOCO]\n" + _catalog_line(selected) + "\n" + (selected.content or "")[:4000],
             ]
             if related:
-                chunks.append("[ANTECEDENTES RELACIONADOS DEL ARCHIVO]\n" + "\n\n".join(_catalog_line(n) + "\n" + (n.content or "")[:2500] for n in related))
+                chunks.append("[ANTECEDENTES RELACIONADOS DEL ARCHIVO]\n" + "\n\n".join(_catalog_line(n) + "\n" + (n.content or "")[:1500] for n in related))
             chunks.append(catalog)
             return "\n\n".join(chunks), [_source(selected), *(_source(n) for n in related)], None
 
@@ -88,7 +88,7 @@ class NewsAssistant:
             if not panoramic:
                 return None, [], _NO_MATCH
             relevant = recent[:self.max_results]
-        detail = "[NOTICIAS RELEVANTES]\n" + "\n\n".join(_catalog_line(n) + "\n" + (n.content or "")[:4500] for n in relevant)
+        detail = "[NOTICIAS RELEVANTES]\n" + "\n\n".join(_catalog_line(n) + "\n" + (n.content or "")[:2500] for n in relevant)
         return detail + "\n\n" + catalog, [_source(n) for n in relevant], None
 
     def query(self, db, question: str, news_id: int | None = None) -> dict:
