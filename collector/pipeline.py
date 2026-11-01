@@ -11,7 +11,7 @@ from collector.discovery import discover
 from collector.documents import baseline_extract, build_document
 from collector.http import FetchError, HttpFetcher
 from collector.images import ImageFetcher, find_image_candidates
-from collector.openrouter import LLMDeferred, LLMRejected, MiniMaxExtractor
+from collector.openrouter import LLMDeferred, LLMRejected, OpenRouterExtractor
 from collector.store import CollectorStore
 from collector.sync import SyncClient
 from shared.contracts import CollectorHeartbeat, Delivery, FREE_MODEL, RunReport, RunSummary
@@ -78,7 +78,7 @@ def run_once(settings,*,clock=lambda:datetime.now(UTC),monotonic=None,http_trans
         except httpx.HTTPError: claims={}
         fetcher=HttpFetcher(client if http_transport is not None else None,allow_test_hosts=settings.allow_test_hosts)
         try:
-            browser=BrowserFetcher(fetcher); extractor=MiniMaxExtractor(settings,client)
+            browser=BrowserFetcher(fetcher); extractor=OpenRouterExtractor(settings,client)
             for source in sources:
                 if monotonic()>=deadline:break
                 claim=claims.get(source.id)

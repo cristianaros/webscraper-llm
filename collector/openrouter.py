@@ -1,6 +1,8 @@
 """Strict OpenRouter client for the approved zero-price extraction model."""
 from __future__ import annotations
 import json
+from functools import lru_cache
+from pathlib import Path
 from email.utils import parsedate_to_datetime
 from datetime import UTC, datetime
 import httpx
@@ -12,14 +14,17 @@ class LLMDeferred(RuntimeError):
 class LLMRejected(RuntimeError):
     def __init__(self,code): super().__init__(code); self.code=code
 
-def extraction_payload(doc:Document,prompt:str)->dict:
-    return {"model":FREE_MODEL,"messages":[{"role":"system","content":prompt},{"role":"user","content":stable_json({"blocks":[b.model_dump() for b in doc.blocks],"expected_body_ids":doc.expected_body_ids})}],"temperature":0,"max_tokens":2048,"reasoning":{"enabled":False},"response_format":{"type":"json_object"},"provider":{"require_parameters":True,"max_price":{"prompt":0,"completion":0}}}
+@lru_cache(maxsize=1)
+def get_extraction_prompt() -> str:
+    return (Path(__file__).parent / 'prompts' / 'extract-v1.txt').read_text(encoding='utf8')
 
-class MiniMaxExtractor:
+def extraction_payload(doc:Document,prompt:str)->dict:
+    return {"model":FREE_MODEL,"messages":[{"role":"system","content":prompt},{"role":"user","content":stable_json({"blocks":[b.model_dump() for b in doc.blocks],"expected_body_ids":doc.expected_body_ids})}],"temperature":0,"max_tokens":512,"reasoning":{"enabled":False},"response_format":{"type":"json_object"},"provider":{"require_parameters":True,"max_price":{"prompt":0,"completion":0}}}
+
+class OpenRouterExtractor:
     def __init__(self,settings:CollectorSettings,client:httpx.Client): self.settings,self.client=settings,client
-    def _prompt(self):
-        from pathlib import Path
-        return (Path(__file__).parent/'prompts'/'extract-v1.txt').read_text(encoding='utf8')
+    def _prompt(self) -> str:
+        return get_extraction_prompt()
     def check_model(self):
         response=self.client.get(f"{OPENROUTER_API_URL}/models"); response.raise_for_status()
         found=next((x for x in response.json().get('data',[]) if x.get('id')==FREE_MODEL),None)
@@ -40,3 +45,6 @@ class MiniMaxExtractor:
         blocks={b.id:b.kind for b in doc.blocks}
         if blocks.get(selection.title_id)!='title' or (selection.date_id is not None and blocks.get(selection.date_id)!='date') or any(blocks.get(i)!='body' for i in selection.body_ids): raise LLMRejected('invalid_output')
         return selection
+
+MiniMaxExtractor = OpenRouterExtractor
+
