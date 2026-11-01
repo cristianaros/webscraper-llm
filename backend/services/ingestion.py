@@ -21,7 +21,7 @@ def persist_article_revision(db, delivery: Delivery, now: datetime):
         uni=db.get(University,source.university_id)
         news=current or News(university_id=source.university_id,source_id=source.id,canonical_url=delivery.document.canonical_url,university=uni.name,created_at=now)
         for key in ("title","content","category","summary","published_at","published_on","date_precision"): setattr(news,key,getattr(fields,key))
-        news.source_url=delivery.document.canonical_url; news.content_hash=delivery.document.document_hash; news.last_fetched_at=delivery.document.fetched_at; news.publication_status="published"; news.editorial_lock=False; db.add(news); db.flush(); status="approved"; outcome="published"
+        news.source_url=delivery.document.canonical_url; news.content_hash=delivery.document.document_hash; news.last_fetched_at=delivery.document.fetched_at; news.publication_status="published"; news.editorial_lock=False; news.updated_at=now; db.add(news); db.flush(); status="approved"; outcome="published"
     elif stale: outcome="stale"
     revision=NewsRevision(news_id=news.id if news else (current.id if current else None),source_id=source.id,source_revision=delivery.document.source_revision,canonical_url=delivery.document.canonical_url,document_hash=delivery.document.document_hash,prompt_version=delivery.prompt_version,fetched_at=delivery.document.fetched_at,payload_json=delivery.model_dump(mode="json"),issues_json=delivery.issues,review_status=status)
     db.add(revision); db.flush()
@@ -45,4 +45,4 @@ def approve_revision(db, revision_id, fields: ArticleFields, *, editorial_lock, 
     news=db.get(News,rev.news_id) if rev.news_id else db.query(News).filter(News.university_id==source.university_id,News.canonical_url==rev.canonical_url).first()
     news=news or News(university_id=source.university_id,source_id=source.id,canonical_url=rev.canonical_url,university=uni.name,created_at=now)
     for key in ("title","content","category","summary","published_at","published_on","date_precision"): setattr(news,key,getattr(fields,key))
-    news.source_url=rev.canonical_url; news.content_hash=rev.document_hash; news.publication_status="published"; news.editorial_lock=editorial_lock; db.add(news); db.flush(); rev.news_id=news.id; rev.review_status="approved"; rev.reviewed_at=now; emit_event(db,news,"approved",now); db.commit(); db.refresh(news); return news
+    news.source_url=rev.canonical_url; news.content_hash=rev.document_hash; news.publication_status="published"; news.editorial_lock=editorial_lock; news.updated_at=now; db.add(news); db.flush(); rev.news_id=news.id; rev.review_status="approved"; rev.reviewed_at=now; emit_event(db,news,"approved",now); db.commit(); db.refresh(news); return news

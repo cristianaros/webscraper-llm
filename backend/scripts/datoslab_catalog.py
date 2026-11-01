@@ -8,6 +8,9 @@ from shared.contracts import SourceInput
 
 DATOSLAB_HOST = "uninews.datoslab.cl"
 DETAIL_PATTERN = r"^https://uninews\.datoslab\.cl/detalle/[0-9]+$"
+VERIFIED_SLUGS: frozenset[str] = frozenset(
+    {"UPLA", "UACH", "UCT", "ULAGOS", "UBIOBIO", "PUCV", "UNAP", "UCSC", "UAYSEN", "UDEC", "UTALCA"}
+)
 
 
 @dataclass(frozen=True)
@@ -47,18 +50,23 @@ DATOSLAB_PROFILES: tuple[UniversityProfile, ...] = (
 
 def build_source_input(profile: UniversityProfile, university_id: int) -> SourceInput:
     """The directory only discovers links; article bytes come from an allowed university host."""
+    image_hosts = [DATOSLAB_HOST]
+    for host in profile.official_hosts:
+        for candidate in (host, host.removeprefix("www.") if host.startswith("www.") else f"www.{host}"):
+            if candidate not in image_hosts:
+                image_hosts.append(candidate)
     return SourceInput(
         university_id=university_id,
         start_url=f"https://{DATOSLAB_HOST}/universidad/{profile.slug}",
         allowed_hosts=[DATOSLAB_HOST, *profile.official_hosts],
-        allowed_image_hosts=list(profile.official_hosts),
+        allowed_image_hosts=image_hosts,
         article_url_pattern=DETAIL_PATTERN,
         link_selector='div.album.py-5 p.card-text a[href*="/detalle/"]',
         content_selector=profile.content_selector,
         title_selector=profile.title_selector,
         date_selector=profile.date_selector,
         max_pages=1,
-        max_articles=3,
+        max_articles=10,
         enabled=False,
         auto_publish=False,
     )

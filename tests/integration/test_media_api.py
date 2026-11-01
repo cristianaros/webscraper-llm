@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from backend.config import BackendSettings
 from backend.main import create_app
 from backend.scripts.bootstrap_db import bootstrap_database
-from models import AnalyticsOutbox, News, NewsMediaHistory, Source
+from models import AnalyticsOutbox, MediaAsset, News, NewsMediaHistory, Source
 from shared.contracts import ArticleFields, Delivery, Document, ImageAsset, ImageDelivery, Selection, TextBlock
 
 PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
@@ -35,5 +35,21 @@ def test_collector_media_upload_is_authenticated_and_idempotent(tmp_path):
     assert repeated.status_code == 200 and repeated.json() == first.json()
     db = app.state.session_factory(); assert db.query(NewsMediaHistory).count() == 1; assert db.query(News).one().image_sha256 == delivery.image.sha256
     events = db.query(AnalyticsOutbox).all(); assert len(events) == 2 and events[-1].operation == "image_updated" and events[-1].payload_json["image_sha256"] == delivery.image.sha256; db.close()
+    # The response must come from PostgreSQL, even if the local media directory disappears.
+    app.state.settings.media_root = tmp_path / "wiped_ephemeral_disk"
     served = client.get(f"/api/media/{delivery.image.sha256}")
-    assert served.status_code == 200 and served.headers["x-content-type-options"] == "nosniff"
+    assert served.status_code == 200 and served.content == PNG
+    assert served.headers["x-content-type-options"] == "nosniff"
+    assert served.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert served.headers["etag"] == f'"{delivery.image.sha256}"'
+    cached = client.get(f"/api/media/{delivery.image.sha256}", headers={"If-None-Match": f'"{delivery.image.sha256}"'})
+    assert cached.status_code == 304
+    db = app.state.session_factory()
+    asset = db.get(MediaAsset, delivery.image.sha256)
+    assert asset.storage_backend == "database" and asset.storage_key == f"db://{delivery.image.sha256}"
+    assert asset.content_bytes == PNG
+    news = db.query(News).one()
+    news.publication_status = "archived"
+    db.commit()
+    db.close()
+    assert client.get(f"/api/media/{delivery.image.sha256}").status_code == 404

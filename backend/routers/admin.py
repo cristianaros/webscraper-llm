@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from database import get_db
 from security import require_admin
 from models import News, NewsRevision, University
@@ -49,7 +49,7 @@ def publication(news_id:int,payload:dict,db=Depends(get_db)):
     n=db.get(News,news_id)
     if not n:raise HTTPException(404,"news_not_found")
     if payload.get("status") not in {"published","archived"}:raise HTTPException(422,"invalid_status")
-    n.publication_status=payload["status"];n.editorial_lock=bool(payload.get("editorial_lock",n.editorial_lock));db.commit();db.refresh(n);return n
+    n.publication_status=payload["status"];n.editorial_lock=bool(payload.get("editorial_lock",n.editorial_lock));n.updated_at=datetime.now(timezone.utc);db.commit();db.refresh(n);return n
 @router.post("/sources/{source_id}/runs",status_code=202)
 def request_run(source_id:int,payload:dict,db=Depends(get_db)):
     source=db.get(Source,source_id)
@@ -76,7 +76,7 @@ def run(run_id:str,db=Depends(get_db)):
     if not r:raise HTTPException(404,"run_not_found")
     return {"run_id":r.id,"status":r.status,"source_id":r.source_id,"source_revision":r.source_revision,"report":r.report_json,"preview":r.preview_json,"error_code":r.error_code}
 @router.get("/collector/status")
-def collector_status(db=Depends(get_db)):
-    row=db.get(CollectorStatus,"windows-collector-1")
+def collector_status(request:Request,db=Depends(get_db)):
+    row=db.get(CollectorStatus,request.app.state.settings.collector_id)
     if not row:return {"stale":True}
     return {**row.status_json,"last_seen_at":row.last_seen_at,"stale":(datetime.now(timezone.utc)-row.last_seen_at).total_seconds()>2700}

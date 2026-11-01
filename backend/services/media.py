@@ -87,15 +87,30 @@ def receive_media(db, settings, delivery: ImageDelivery, content: bytes, uploade
     if revision is None: raise HTTPException(404, "revision_not_found")
     if revision.document_hash != delivery.expected_document_hash: raise HTTPException(409, "revision_document_mismatch")
     try:
-        stored = LocalMediaStore(settings.media_root).put(delivery.image.sha256, content, delivery.image.content_type)
+        media_url = f"/api/media/{delivery.image.sha256}"
         asset = db.get(MediaAsset, delivery.image.sha256)
         if asset is None:
-            db.add(MediaAsset(sha256=delivery.image.sha256, storage_key=stored.storage_uri, storage_backend="local", content_type=delivery.image.content_type, width=delivery.image.width, height=delivery.image.height, byte_size=delivery.image.byte_size))
+            asset = MediaAsset(
+                sha256=delivery.image.sha256,
+                storage_key=f"db://{delivery.image.sha256}",
+                storage_backend="database",
+                content_type=delivery.image.content_type,
+                width=delivery.image.width,
+                height=delivery.image.height,
+                byte_size=delivery.image.byte_size,
+                content_bytes=content,
+            )
+            db.add(asset)
+        elif asset.content_bytes is None:
+            asset.storage_key = f"db://{delivery.image.sha256}"
+            asset.storage_backend = "database"
+            asset.content_bytes = content
         news = db.get(News, revision.news_id) if revision.news_id else None; applied = bool(news and news.content_hash == delivery.expected_document_hash)
         if applied:
             changed = news.image_status != "ready" or news.image_sha256 != delivery.image.sha256
-            news.image_status = "ready"; news.image_sha256 = delivery.image.sha256; news.image_original_url = delivery.image.original_url; news.image_alt = delivery.image.alt; news.image_credit = delivery.image.credit; news.image_url = stored.url
+            news.image_status = "ready"; news.image_sha256 = delivery.image.sha256; news.image_original_url = delivery.image.original_url; news.image_alt = delivery.image.alt; news.image_credit = delivery.image.credit; news.image_url = media_url
             if changed:
+                news.updated_at = now
                 emit_event(db, news, "image_updated", now)
         db.add(NewsMediaHistory(revision_id=revision.id, news_id=news.id if news else None, image_json=delivery.image.model_dump(mode="json")))
         receipt = MediaReceipt(delivery_id=delivery.delivery_id, revision_id=revision.id, news_id=news.id if news else None, applied_to_current=applied)

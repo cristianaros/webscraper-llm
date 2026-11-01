@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 from database import get_db
 from models import MediaAsset, News
 from security import require_collector
@@ -17,7 +17,13 @@ async def upload_media(request: Request, delivery: str = Form(...), file: Upload
     finally: await file.close()
 
 @router.get("/media/{sha256}")
-def get_media(sha256:str,db=Depends(get_db)):
+def get_media(sha256: str, if_none_match: str | None = Header(default=None), db=Depends(get_db)):
     asset=db.get(MediaAsset,sha256)
     if not asset or not db.query(News).filter(News.image_sha256==sha256,News.publication_status=="published").first():raise HTTPException(404,"media_not_found")
-    return FileResponse(asset.storage_key,media_type=asset.content_type,headers={"X-Content-Type-Options":"nosniff"})
+    etag = f'"{sha256}"'
+    headers = {"X-Content-Type-Options":"nosniff", "Cache-Control":"public, max-age=31536000, immutable", "ETag":etag}
+    if if_none_match and (etag in if_none_match or sha256 in if_none_match):
+        return Response(status_code=304, headers=headers)
+    if asset.content_bytes is not None:
+        return Response(content=asset.content_bytes, media_type=asset.content_type, headers=headers)
+    return FileResponse(asset.storage_key,media_type=asset.content_type,headers=headers)

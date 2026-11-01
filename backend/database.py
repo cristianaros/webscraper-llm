@@ -16,13 +16,26 @@ class UTCDateTime(TypeDecorator):
         return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
 
 def make_engine(url: str) -> Engine:
-    engine = create_engine(url, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {}, future=True)
+    url = normalize_database_url(url)
     if url.startswith("sqlite"):
+        engine = create_engine(url, connect_args={"check_same_thread": False}, future=True)
         @event.listens_for(engine, "connect")
         def sqlite_pragmas(conn, _):
             cur = conn.cursor()
             cur.execute("PRAGMA foreign_keys=ON"); cur.execute("PRAGMA journal_mode=WAL"); cur.execute("PRAGMA busy_timeout=5000"); cur.close()
+    else:
+        engine = create_engine(
+            url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True
+        )
     return engine
+
+def normalize_database_url(url: str) -> str:
+    """Normalize Railway's PostgreSQL aliases while preserving encoded credentials."""
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
 
 def make_session_factory(engine: Engine): return sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 

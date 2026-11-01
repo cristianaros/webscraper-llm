@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field
+from datetime import date, datetime
 from typing import Optional
 
 
@@ -36,7 +36,7 @@ class NewsUpdate(BaseModel):
 class NewsResponse(NewsBase):
     id: int
     university_id: Optional[int] = None
-    published_on: Optional[datetime] = None
+    published_on: Optional[date] = None
     date_precision: Optional[str] = None
     publication_status: str = "published"
     image_status: str = "not_found"
@@ -44,8 +44,7 @@ class NewsResponse(NewsBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatRequest(BaseModel):

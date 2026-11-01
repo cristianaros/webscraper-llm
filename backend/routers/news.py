@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from database import get_db
@@ -9,9 +10,10 @@ router=APIRouter(prefix="/api/news",tags=["News"])
 def stats(db=Depends(get_db)):
     q=published_news(db);return schemas.StatsResponse(total_news=q.count(),categories=dict(q.with_entities(models.News.category,func.count(models.News.id)).group_by(models.News.category).all()),universities=[x[0] for x in q.with_entities(models.News.university).distinct().all()],featured_count=q.filter(models.News.is_featured==True).count())
 @router.get("/",response_model=list[schemas.NewsResponse])
-def list_news(skip:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=100),university_id:int|None=None,category:str|None=None,search:str|None=Query(None,min_length=1,max_length=200),db=Depends(get_db)):
+def list_news(skip:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=100),university_id:int|None=None,university:str|None=Query(None,min_length=1,max_length=200),category:str|None=None,search:str|None=Query(None,min_length=1,max_length=200),db=Depends(get_db)):
     q=published_news(db)
     if university_id:q=q.filter(models.News.university_id==university_id)
+    if university:q=q.filter(models.News.university==university)
     if category:q=q.filter(models.News.category==category)
     if search:
         pattern = f"%{search.strip().lower()}%"
@@ -24,15 +26,16 @@ def get_news(news_id:int,db=Depends(get_db)):
     return n
 @router.post("/",response_model=schemas.NewsResponse,status_code=201,dependencies=[Depends(require_admin)])
 def create(news_in:schemas.NewsCreate,db=Depends(get_db)):
-    n=models.News(**news_in.model_dump(),publication_status="published",editorial_lock=True);db.add(n);db.commit();db.refresh(n);return n
+    now=datetime.now(timezone.utc)
+    n=models.News(**news_in.model_dump(),publication_status="published",editorial_lock=True,created_at=now,updated_at=now);db.add(n);db.commit();db.refresh(n);return n
 @router.put("/{news_id}",response_model=schemas.NewsResponse,dependencies=[Depends(require_admin)])
 def update(news_id:int,news_in:schemas.NewsUpdate,db=Depends(get_db)):
     n=db.get(models.News,news_id)
     if not n:raise HTTPException(404,"Noticia no encontrada")
     for k,v in news_in.model_dump(exclude_unset=True).items():setattr(n,k,v)
-    n.editorial_lock=True;db.commit();db.refresh(n);return n
+    n.editorial_lock=True;n.updated_at=datetime.now(timezone.utc);db.commit();db.refresh(n);return n
 @router.delete("/{news_id}",status_code=204,dependencies=[Depends(require_admin)])
 def delete(news_id:int,db=Depends(get_db)):
     n=db.get(models.News,news_id)
     if not n:raise HTTPException(404,"Noticia no encontrada")
-    n.publication_status="archived";db.commit()
+    n.publication_status="archived";n.updated_at=datetime.now(timezone.utc);db.commit()

@@ -16,14 +16,16 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from database import Base  # noqa: E402
+from database import Base, normalize_database_url  # noqa: E402
 import models  # noqa: E402, F401 -- register all mapped tables on Base.metadata
 
 
 config = context.config
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option(
+        "sqlalchemy.url", normalize_database_url(database_url).replace("%", "%%")
+    )
 
 target_metadata = Base.metadata
 

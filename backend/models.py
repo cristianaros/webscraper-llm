@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Index
+from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, Index
 from sqlalchemy.sql import func
 from database import Base, UTCDateTime
 
@@ -26,7 +26,7 @@ class ScrapeRun(Base):
 class CollectorStatus(Base):
     __tablename__ = "collector_status"; collector_id = Column(String(80), primary_key=True); last_seen_at = Column(UTCDateTime(timezone=True), nullable=False); status_json = Column(JSON, nullable=False)
 class MediaAsset(Base):
-    __tablename__ = "media_assets"; sha256 = Column(String(64), primary_key=True); storage_key = Column(Text, nullable=False); storage_backend = Column(String(20), nullable=False); content_type = Column(String(40), nullable=False); width = Column(Integer, nullable=False); height = Column(Integer, nullable=False); byte_size = Column(Integer, nullable=False); created_at = Column(UTCDateTime(timezone=True), server_default=func.now())
+    __tablename__ = "media_assets"; sha256 = Column(String(64), primary_key=True); storage_key = Column(Text, nullable=False); storage_backend = Column(String(20), nullable=False); content_type = Column(String(40), nullable=False); width = Column(Integer, nullable=False); height = Column(Integer, nullable=False); byte_size = Column(Integer, nullable=False); created_at = Column(UTCDateTime(timezone=True), server_default=func.now()); content_bytes = Column(LargeBinary, nullable=True)
 class NewsMediaHistory(Base):
     __tablename__ = "news_media_history"; id = Column(Integer, primary_key=True); revision_id = Column(Integer, ForeignKey("news_revisions.id"), nullable=False); news_id = Column(Integer, ForeignKey("news.id")); image_json = Column(JSON, nullable=False); created_at = Column(UTCDateTime(timezone=True), server_default=func.now())
 class AnalyticsOutbox(Base):
