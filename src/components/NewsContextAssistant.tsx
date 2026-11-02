@@ -4,6 +4,7 @@ import { useState } from "react";
 import { resolveExternalUrl, sendChatMessage, type ChatResponse, type News } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -21,8 +22,6 @@ export default function NewsContextAssistant({ news }: { news: News }) {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-
 
   async function submitQuestion(text: string) {
     const prompt = text.trim();
@@ -68,7 +67,11 @@ export default function NewsContextAssistant({ news }: { news: News }) {
       {messages.length > 0 && <div aria-live="polite" className="mb-4 space-y-3">
         {messages.map((message, index) => <div key={`${index}-${message.role}`} className={message.role === "user" ? "ml-6 border-l-2 border-primary/40 pl-3" : "border-l-2 border-foreground/10 pl-3"}>
           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{message.role === "user" ? "Tu pregunta" : "Respuesta"}</p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          {message.role === "assistant" ? (
+            <MarkdownMessage content={message.content} />
+          ) : (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          )}
           {message.sources && message.sources.length > 0 && <div className="mt-3 space-y-2">
             {message.sources.map((source, sourceIndex) => {
               const current = source.news_id === news.id;
