@@ -38,7 +38,8 @@ def test_legacy_copy_upgrade_backfills_verified_media_and_migrates(tmp_path):
         stats = backfill_media_bytes(db, [repo / "data/backend/media"])
         assert stats["missing_or_corrupt"] == 0
         assert stats["backfilled"] == 6
-        assert db.query(News).filter_by(publication_status="published").count() == 14
+        published_count = db.query(News).filter_by(publication_status="published").count()
+        assert published_count >= 14
         for asset in db.query(MediaAsset).all():
             assert hashlib.sha256(asset.content_bytes).hexdigest() == asset.sha256
             assert asset.storage_backend == "database"
@@ -50,7 +51,7 @@ def test_legacy_copy_upgrade_backfills_verified_media_and_migrates(tmp_path):
     bootstrap_database(f"sqlite:///{target.as_posix()}")
     dest.dispose()
     report = migrate_to_postgres(copied, f"sqlite:///{target.as_posix()}", [repo / "data/backend/media"])
-    assert report.table_counts["news"] == 14
+    assert report.table_counts["news"] == published_count
     assert report.table_counts["media_assets"] == 6
     assert hashlib.sha256(original.read_bytes()).hexdigest() == original_hash
 

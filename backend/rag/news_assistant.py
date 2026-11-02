@@ -9,11 +9,20 @@ import unicodedata
 from models import News
 
 _STOP_WORDS = {
-    "al", "con", "de", "del", "el", "en", "es", "la", "lo", "no", "se", "si", "su", "un", "ya",
-    "como", "cual", "cuales", "dame", "dime", "esta", "estas", "este", "estos", "hay", "las", "los",
-    "mas", "noticia", "noticias", "para", "por", "que", "reciente", "recientes", "resumen", "resume",
-    "sobre", "una", "ultima", "ultimas",
+    "al", "con", "de", "del", "el", "en", "es", "la", "las", "lo", "los", "no", "se", "si", "su", "sus",
+    "un", "una", "unos", "unas", "ya", "como", "cual", "cuales", "para", "por", "que", "sobre",
+    "esta", "estas", "este", "estos", "esto", "mas", "menos", "mucho", "muchos", "muy",
+    "hay", "dame", "dime", "cuenta", "cuentame", "explica", "explicame", "hazme", "haz",
+    "dice", "dicen", "habla", "hablan", "trata", "tratan", "sabes", "puedes", "hacer",
+    "quien", "quienes", "eres", "donde", "cuando", "cuanto", "cuanta", "cuantos", "cuantas",
+    "queda", "quedan", "tal", "ayuda", "ayudame",
+    "hola", "buenas", "buenos", "saludos", "gracias", "favor", "porfa", "tardes", "dias", "noches", "hello", "hi",
+    "noticia", "noticias", "articulo", "articulos", "publicacion", "publicaciones",
+    "publicada", "publicadas", "publicado", "publicados",
+    "reciente", "recientes", "resumen", "resume", "resumir", "ultima", "ultimas",
+    "blog", "sitio", "web", "pagina", "portal", "archivo", "general",
 }
+_PANORAMIC_TRIGGERS = ("panorama", "portal", "todas", "todos", "universidades", "archivo", "general")
 _NO_MATCH = "No encontré noticias publicadas relacionadas con tu pregunta."
 _HIDDEN = "La noticia seleccionada no está publicada o no existe."
 
@@ -84,7 +93,7 @@ class NewsAssistant:
         scored = sorted((( _score(n, terms), n.published_at.timestamp() if n.published_at else 0, n.id, n) for n in pool), key=lambda row: (row[0], row[1], row[2]), reverse=True)
         relevant = [row[3] for row in scored if row[0] > 0][:self.max_results]
         if not relevant:
-            panoramic = not terms or any(token in _normalized(question) for token in ("panorama", "portal", "todas", "universidades", "archivo", "general"))
+            panoramic = not terms or any(token in _normalized(question) for token in _PANORAMIC_TRIGGERS)
             if not panoramic:
                 return None, [], _NO_MATCH
             relevant = recent[:self.max_results]

@@ -125,6 +125,32 @@ def test_global_chat_falls_back_to_recent_catalog_when_terms_do_not_match(tmp_pa
     assert "[CATÁLOGO RECIENTE DEL PORTAL]" in llm.calls[0][1]
 
 
+def test_chat_handles_conversational_greetings_and_general_blog_summary(tmp_path):
+    url = "sqlite:///" + (tmp_path / "conversational.db").as_posix()
+    bootstrap_database(url)
+    app = create_app(BackendSettings(database_url=url, rag_enabled=True, openrouter_api_key=SecretStr("test-key")))
+    llm = StubLLM()
+    app.state.assistant.llm = llm
+    now = datetime.now(UTC)
+    with app.state.session_factory() as db:
+        db.add_all([
+            News(id=i, title=f"Innovación Tecnológica {i}", content=f"Detalle sobre ciencia {i}", category="Ciencia", university="Universidad A", publication_status="published", created_at=now, published_at=now)
+            for i in range(1, 4)
+        ])
+        db.commit()
+    client = TestClient(app)
+
+    res_summary = client.post("/api/chat/", json={"question": "Hazme un resumen de lo que dicen las noticias publicadas en este blog"})
+    assert res_summary.status_code == 200
+    assert len(res_summary.json()["sources"]) == 3
+    assert len(llm.calls) == 1
+
+    res_greeting = client.post("/api/chat/", json={"question": "Hola"})
+    assert res_greeting.status_code == 200
+    assert len(res_greeting.json()["sources"]) == 3
+    assert len(llm.calls) == 2
+
+
 def test_editorial_edit_updates_marker_and_invalidates_chat_cache(tmp_path):
     url = "sqlite:///" + (tmp_path / "edit-cache.db").as_posix()
     bootstrap_database(url)
