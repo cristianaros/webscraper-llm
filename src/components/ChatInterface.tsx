@@ -686,7 +686,7 @@ export default function ChatInterface() {
 
       {/* ================= NEWS PICKER MODAL ================= */}
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-5 border-b border-border bg-muted/20">
             <DialogTitle className="font-display text-2xl font-bold">
               Seleccionar noticia para el Asistente

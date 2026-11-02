@@ -471,7 +471,7 @@ function LegacyAdminPanel({ token }: { token: string }) {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) { setDialogOpen(false); setEditNews(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+        <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-hidden p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
             <DialogTitle className="font-display text-xl font-normal">
               {editNews ? "Editar noticia" : "Nueva noticia"}

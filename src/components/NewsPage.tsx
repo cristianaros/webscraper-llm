@@ -98,12 +98,71 @@ function NewsDialog({ news, onClose }: { news: News | null; onClose: () => void 
   const paragraphs = news?.content.split(/\n{2,}/).map(value => value.trim()).filter(Boolean) ?? [];
   const imageUrl = resolveMediaUrl(news?.image_url);
   const sourceUrl = resolveExternalUrl(news?.source_url);
-  return <Dialog open={Boolean(news)} onOpenChange={open => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-4xl rounded-none p-0"><ScrollArea className="max-h-[90vh]"><div className="p-6 sm:p-10">{news ? <>
-    <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">{news.university} · {formatPublicationDate(news)}</p><DialogHeader><DialogTitle className="font-display text-3xl font-bold sm:text-5xl">{news.title}</DialogTitle><DialogDescription className="sr-only">Lectura de artículo: {news.title}</DialogDescription></DialogHeader>
-    {news.summary ? <p className="my-6 border-b pb-5 font-serif text-lg italic">{news.summary}</p> : null}
-    {imageUrl && !imageBroken ? <img src={imageUrl} alt={news.title} onError={() => setImageBroken(true)} className="my-6 max-h-[480px] w-full object-cover"/> : null}
-    <div className="space-y-4 font-serif leading-7">{paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
-    {sourceUrl ? <a className="mt-8 inline-block text-sm underline" href={sourceUrl} target="_blank" rel="noopener noreferrer">Ver fuente institucional</a> : null}
-    <NewsContextAssistant key={news.id} news={news}/>
-  </> : null}</div></ScrollArea></DialogContent></Dialog>;
+  return (
+    <Dialog open={Boolean(news)} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] sm:w-full max-w-4xl sm:max-w-4xl rounded-none p-0 overflow-hidden">
+        <ScrollArea className="max-h-[90vh]">
+          <div className="p-6 sm:p-10">
+            {news ? (
+              <>
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold uppercase tracking-wider text-[#D8232A]">{news.category}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="font-medium uppercase tracking-wider text-muted-foreground">{news.university}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{formatPublicationDate(news)}</span>
+                </div>
+                <DialogHeader className="gap-2">
+                  <DialogTitle className="font-display text-2xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+                    {news.title}
+                  </DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Lectura de artículo: {news.title}
+                  </DialogDescription>
+                </DialogHeader>
+                {news.summary ? (
+                  <p className="my-6 border-b border-border pb-5 font-serif text-lg italic leading-relaxed text-muted-foreground sm:text-xl">
+                    {news.summary}
+                  </p>
+                ) : null}
+                {imageUrl && !imageBroken ? (
+                  <figure className="my-6 overflow-hidden border border-border bg-muted">
+                    <img
+                      src={imageUrl}
+                      alt={news.title}
+                      onError={() => setImageBroken(true)}
+                      className="max-h-[480px] w-full object-cover"
+                    />
+                  </figure>
+                ) : null}
+                <div className="space-y-4 font-serif text-base leading-relaxed text-foreground/90 sm:text-lg sm:leading-8">
+                  {paragraphs.map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </div>
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4 text-xs text-muted-foreground">
+                  {news.author ? (
+                    <span>
+                      Por <strong className="font-medium text-foreground">{news.author}</strong>
+                    </span>
+                  ) : <span />}
+                  {sourceUrl ? (
+                    <a
+                      className="font-medium text-[#D8232A] underline underline-offset-4 hover:text-[#b8181f]"
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Ver fuente institucional en {news.university} ↗
+                    </a>
+                  ) : null}
+                </div>
+                <NewsContextAssistant key={news.id} news={news} />
+              </>
+            ) : null}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
 }
