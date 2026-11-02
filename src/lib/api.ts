@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.PUBLIC_API_URL ?? "";
+export const API_BASE = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/+$/, "");
 
 export interface News {
   id: number;

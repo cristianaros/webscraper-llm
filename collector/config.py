@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -12,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.contracts import FREE_MODEL
 
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1").rstrip("/")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENV_FILE = REPO_ROOT / ".env"
 LEGACY_COLLECTOR_ENV_FILE = Path(__file__).resolve().parent / ".env"
